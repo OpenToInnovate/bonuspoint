@@ -61,7 +61,6 @@ a { color: inherit; }
 }
 .popular-grid .card-tile .tile-logo { height: 38px; }
 .card-tile .tile-num { font-size: 11px; opacity: .85; }
-.card-tile.archived { opacity: .5; }
 .card-tile .tile-star {
   position: absolute; top: 6px; right: 8px; font-size: 18px; color: rgba(255,255,255,.75);
   text-shadow: 0 1px 2px rgba(0,0,0,.4);
@@ -71,16 +70,6 @@ a { color: inherit; }
 .card-tile.dragging { opacity: .85; z-index: 30; box-shadow: 0 8px 24px rgba(0,0,0,.35); transition: none; }
 .card-tile.drop-target { outline: 2px dashed #fff; outline-offset: -4px; }
 .arch-dot { width: 34px; height: 34px; border-radius: 8px; flex: none; }
-
-/* ---------- Floating action button ---------- */
-.fab {
-  position: fixed; bottom: calc(var(--nav-h) + 18px + env(safe-area-inset-bottom));
-  left: 50%; transform: translateX(min(210px, 50vw) - 56px);
-  width: 56px; height: 56px; border-radius: 50%;
-  background: var(--red); color: #fff; font-size: 30px; line-height: 56px; text-align: center;
-  box-shadow: 0 4px 12px rgba(225,29,72,.45); z-index: 10;
-}
-.fab:active { background: var(--red-dark); }
 
 /* ---------- List header, search, chips, sort ---------- */
 .list-header .centered-title { text-align: center; flex: 1; }
@@ -231,18 +220,6 @@ a { color: inherit; }
   background: rgba(0,0,0,.65); color: #fff; font-size: 12px; line-height: 24px; text-align: center;
 }
 
-/* ---------- Card detail ---------- */
-.card-face { margin: 4px 16px; border-radius: var(--radius); overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.18); background: #fff; }
-.detail-face { margin-bottom: 0; }
-.success-banner {
-  margin: 12px 16px 0; background: var(--green); color: #fff; font-weight: 600;
-  border-radius: 10px; padding: 10px 14px; text-align: center; font-size: 14px;
-}
-.detail-actions { display: flex; gap: 10px; padding: 12px 16px 0; }
-.detail-actions button {
-  flex: 1; background: #fff; border: 1px solid #e4e4e7; border-radius: 10px; padding: 10px; font-size: 14px; font-weight: 600;
-}
-.detail-actions button.danger { color: var(--red); }
 
 /* ---------- Rows (NEXT CARD, NOTES, PICTURES) ---------- */
 .row-card { background: #fff; margin: 10px 16px 0; border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; gap: 10px; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
@@ -263,7 +240,6 @@ a { color: inherit; }
 .color-dot { width: 34px; height: 34px; border-radius: 50%; border: 3px solid transparent; }
 .color-dot.selected { border-color: var(--text); }
 .btn-primary { width: 100%; background: var(--red); color: #fff; border-radius: 12px; padding: 14px; font-weight: 700; font-size: 16px; margin-top: 8px; }
-.btn-secondary { width: 100%; background: #fff; border: 1px solid #d4d4d8; border-radius: 12px; padding: 14px; font-weight: 600; font-size: 15px; margin-top: 10px; }
 
 /* ---------- Scanner ---------- */
 #scanner-video { width: 100%; max-width: 420px; border-radius: 12px; background: #000; display: block; }
@@ -298,10 +274,7 @@ a { color: inherit; }
 .scan-row .chev { color: #c4c4c8; }
 .scan-form { padding-top: 6px; }
 
-/* ---------- Brightness boost overlay ---------- */
-.face-bright { filter: contrast(1.15) brightness(1.1); }
-.fullscreen-bright:fullscreen { background: #fff; }
-.fullscreen-bright:fullscreen .face-body { padding: 40px 12px; }
+
 
 /* ---------- Settings ---------- */
 .settings-group { background: #fff; margin: 10px 16px 0; border-radius: 12px; overflow: hidden; }
@@ -335,3 +308,25 @@ body.dark .field input, body.dark .field textarea, body.dark .field select, body
 body.dark .search-bar, body.dark .region-row select { background: #232327; color: #f4f4f5; }
 body.dark .card-tile { box-shadow: 0 1px 3px rgba(0,0,0,.4), inset 0 0 0 1px rgba(255,255,255,.14); }
 body.dark .card-tile.add-tile { background: #2e2e33; color: #a1a1aa; }
+
+/* ---------- Touch targets, focus, input polish ---------- */
+button { touch-action: manipulation; }
+button:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+.field input:focus, .field textarea:focus, .field select:focus { outline: none; border-color: var(--red); }
+.icon-btn { padding: 10px; }
+.color-dot { width: 40px; height: 40px; }
+.photo-del { width: 30px; height: 30px; font-size: 13px; line-height: 30px; }
+.quick-actions button { padding: 13px 6px; }
+.card-tile .tile-star { top: 2px; right: 4px; padding: 6px; }
+
+/* Long card numbers shrink to stay scannable/wrappable */
+.card-number.long { font-size: 16px; letter-spacing: .05em; }
+
+/* ---------- SW update prompt ---------- */
+.sw-update {
+  position: fixed; bottom: calc(var(--nav-h) + 12px + env(safe-area-inset-bottom));
+  left: 50%; transform: translateX(-50%);
+  background: #18181b; color: #fff; border-radius: 999px; padding: 11px 18px;
+  font-size: 14px; font-weight: 600; z-index: 25;
+  box-shadow: 0 4px 16px rgba(0,0,0,.3); animation: fadein .2s ease;
+}
