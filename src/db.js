@@ -56,7 +56,37 @@ export const db = {
   async import(json) {
     const data = JSON.parse(json);
     if (data.app !== 'bonuspoint' || !Array.isArray(data.cards)) throw new Error('Not a Bonus Point backup');
-    for (const card of data.cards) await this.putCard(card);
-    return data.cards.length;
+    const cards = data.cards.map(normalizeCard).filter(Boolean);
+    for (const card of cards) await this.putCard(card);
+    return cards.length;
   },
+}
+
+/* Defensive normalization for imported backups: a malformed or hand-edited
+ * file must never crash the app (missing names/numbers, junk colors, huge
+ * photo arrays, wrong types). */
+const FORMATS_OK = new Set(['CODE128', 'EAN13', 'EAN8', 'UPC', 'CODE39', 'ITF14']);
+function normalizeCard(c) {
+  if (!c || typeof c !== 'object' || Array.isArray(c)) return null;
+  const hex = (v, fb) => (typeof v === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(v) ? v : fb);
+  const str = (v, max) => (typeof v === 'string' ? v.slice(0, max) : '');
+  const num = (v) => (Number.isFinite(v) ? v : undefined);
+  return {
+    id: typeof c.id === 'string' && c.id ? c.id.slice(0, 64) : `imp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    name: str(c.name, 80),
+    number: str(c.number, 200),
+    format: FORMATS_OK.has(c.format) ? c.format : 'CODE128',
+    ...(c.displayFormat === 'qr' || c.displayFormat === 'barcode' ? { displayFormat: c.displayFormat } : {}),
+    color: hex(c.color, '#52525b'),
+    ink: hex(c.ink, '#ffffff'),
+    text: hex(c.text, '#ffffff'),
+    logo: typeof c.logo === 'string' ? c.logo.slice(0, 64) : null,
+    notes: str(c.notes, 5000),
+    photos: Array.isArray(c.photos) ? c.photos.filter((p) => typeof p === 'string').slice(0, 20) : [],
+    archived: Boolean(c.archived),
+    favorite: Boolean(c.favorite),
+    sort: num(c.sort),
+    createdAt: num(c.createdAt) ?? Date.now(),
+    ...(Number.isFinite(c.lastUsedAt) ? { lastUsedAt: c.lastUsedAt } : {}),
+  };
 };
