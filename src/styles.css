@@ -46,19 +46,20 @@ a { color: inherit; }
   padding: 0 16px 90px;
 }
 .card-tile {
-  border-radius: var(--radius); color: #fff; padding: 14px;
-  height: 96px; display: flex; flex-direction: column; justify-content: space-between;
-  box-shadow: 0 1px 3px rgba(0,0,0,.15), inset 0 0 0 1px rgba(0,0,0,.06);
-  text-align: left; overflow: hidden;
+  border-radius: 16px; color: #fff; padding: 10px 12px;
+  height: 96px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.15), inset 0 0 0 1px rgba(0,0,0,.10);
+  text-align: center; overflow: hidden;
   transition: transform .15s ease, box-shadow .15s ease;
 }
 .card-tile:active { transform: scale(.98); }
-.card-tile .tile-name { font-weight: 700; font-size: 15px; text-shadow: 0 1px 2px rgba(0,0,0,.25); word-break: break-word; }
+.card-tile .tile-name { font-weight: 700; font-size: 13px; line-height: 1.15; text-shadow: 0 1px 2px rgba(0,0,0,.25); word-break: break-word; }
+/* Brand logo dominates the tile face (~80% of tile width). */
 .card-tile .tile-logo {
-  width: 34px; height: 34px; object-fit: contain; align-self: center;
+  width: 80%; max-width: 150px; height: 44px; object-fit: contain;
   filter: drop-shadow(0 1px 1px rgba(0,0,0,.2)); user-select: none;
 }
-.popular-grid .card-tile .tile-logo { width: 30px; height: 30px; }
+.popular-grid .card-tile .tile-logo { height: 38px; }
 .card-tile .tile-num { font-size: 11px; opacity: .85; }
 .card-tile.archived { opacity: .5; }
 .card-tile .tile-star {
@@ -142,7 +143,7 @@ a { color: inherit; }
 }
 .btn-red:active { background: var(--red-dark); }
 .popular-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 0 16px; }
-.popular-grid .card-tile { height: 64px; justify-content: center; padding: 8px; }
+.popular-grid .card-tile { height: 76px; justify-content: center; padding: 8px 6px; }
 .caption { text-align: center; color: var(--muted); font-size: 13px; padding: 16px 0 100px; }
 
 /* ---------- Card detail (dark premium) ---------- */
@@ -321,4 +322,5 @@ body.dark .topbar, body.dark .bottom-nav, body.dark .row-card, body.dark .settin
 body.dark .card-face .face-body { background: #fff; } /* barcode needs white bg */
 body.dark .field input, body.dark .field textarea, body.dark .field select, body.dark .btn-secondary { background: #232327; color: #f4f4f5; border-color: #3f3f46; }
 body.dark .search-bar, body.dark .region-row select { background: #232327; color: #f4f4f5; }
+body.dark .card-tile { box-shadow: 0 1px 3px rgba(0,0,0,.4), inset 0 0 0 1px rgba(255,255,255,.14); }
 body.dark .card-tile.add-tile { background: #2e2e33; color: #a1a1aa; }
