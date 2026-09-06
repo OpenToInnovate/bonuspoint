@@ -1,11 +1,8 @@
 /**
- * Barcode rendering (JsBarcode, bundled) + QR fallback.
- * QR is a tiny dependency-free option: we render a QR via a minimal encoder
- * only if we bundle one — for MVP we use JsBarcode only and note QR as stubbed
- * unless a QR lib is present. To keep "no CDN" we implement QR via 'qrcode-generator'
- * style encoder? Too heavy inline — instead we gate QR behind an optional bundled lib.
+ * Code rendering: linear barcodes via JsBarcode, QR via `qrcode` — both bundled locally.
  */
 import JsBarcode from 'jsbarcode';
+import QRCode from 'qrcode';
 
 /** Render `number` as a barcode into `canvas`. Returns true on success. */
 export function renderBarcode(canvas, number, format = 'CODE128') {
@@ -24,6 +21,35 @@ export function renderBarcode(canvas, number, format = 'CODE128') {
     console.warn('barcode render failed', e);
     return false;
   }
+}
+
+/** Render `number` as a QR code into `canvas`. Returns true on success. */
+export async function renderQR(canvas, text) {
+  try {
+    await QRCode.toCanvas(canvas, text, {
+      width: 260,
+      margin: 2,
+      color: { dark: '#111111', light: '#ffffff' },
+    });
+    return true;
+  } catch (e) {
+    console.warn('qr render failed', e);
+    return false;
+  }
+}
+
+/** Heuristic: alphanumeric or very long numeric codes scan better as QR. */
+export function isQRish(number) {
+  if (!number) return false;
+  if (!/^\d+$/.test(number)) return true; // contains letters/symbols -> QR
+  return number.length > 18; // very long numeric -> QR
+}
+
+/** Resolve the effective display mode for a card ('qr' | 'barcode'). */
+export function displayMode(card) {
+  if (card.displayFormat === 'qr') return 'qr';
+  if (card.displayFormat === 'barcode') return 'barcode';
+  return isQRish(card.number || '') ? 'qr' : 'barcode';
 }
 
 /** "123 456 789 0" style grouping for display. */

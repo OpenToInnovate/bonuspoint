@@ -3,7 +3,7 @@
  */
 import { db } from './db.js';
 import { CATALOG, FORMATS } from './catalog.js';
-import { renderBarcode, groupNumber } from './barcode.js';
+import { renderBarcode, renderQR, displayMode, groupNumber } from './barcode.js';
 import { startScan, nativeDetectorSupported } from './scanner.js';
 import './styles.css';
 
@@ -57,15 +57,21 @@ function viewIsTabLevel() {
 
 /* ---------------- Cards list ---------------- */
 async function renderCardsList() {
-  const cards = (await db.listCards()).filter((c) => !c.archived).sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
+  const all = (await db.listCards()).filter((c) => !c.archived);
+  all.sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
+  const favorites = all.filter((c) => c.favorite);
+  const rest = all.filter((c) => !c.favorite);
 
   const header = el('div', { class: 'topbar' }, [
     el('h1', {}, ['Cards']),
     el('button', { class: 'icon-btn', 'aria-label': 'Add card', onclick: () => { state.view = { name: 'add' }; render(); } }, ['+']),
   ]);
 
-  const grid = el('div', { class: 'cards-grid' });
-  if (!cards.length) {
+  const frag = el('div');
+  frag.append(header);
+
+  if (!all.length) {
+    const grid = el('div', { class: 'cards-grid' });
     grid.append(
       el('div', { class: 'empty-state', style: 'grid-column:1/-1' }, [
         el('div', { class: 'big-ico' }, ['🎟️']),
@@ -73,20 +79,115 @@ async function renderCardsList() {
         el('button', { class: 'btn-red', onclick: () => { state.view = { name: 'add' }; render(); } }, ['Add your first card']),
       ]),
     );
-  }
-  for (const c of cards) {
-    grid.append(el('button', {
-      class: 'card-tile', style: `background:${c.color}`,
-      onclick: () => { state.view = { name: 'detail', id: c.id }; render(); },
-    }, [
-      el('div', { class: 'tile-name' }, [c.name]),
-      c.number ? el('div', { class: 'tile-num' }, [groupNumber(c.number)]) : null,
-    ]));
+    frag.append(el('div', { class: 'section-label' }, ['All cards']), grid);
+  } else {
+    const makeGrid = (cards, label) => {
+      const wrap = el('div');
+      if (label && cards.length) wrap.append(el('div', { class: 'section-label' }, [label]));
+      const grid = el('div', { class: 'cards-grid' });
+      for (const c of cards) grid.append(listTile(c));
+      wrap.append(grid);
+      return wrap;
+    };
+    frag.append(makeGrid(favorites, favorites.length ? 'Favorites' : null));
+    frag.append(makeGrid(rest, 'All cards'));
+    enableDragReorder(frag, [...favorites, ...rest]);
   }
 
-  app.append(header, el('div', { class: 'section-label' }, ['All cards']), grid);
-  app.append(el('button', { class: 'fab', 'aria-label': 'Add card', onclick: () => { state.view = { name: 'add' }; render(); } }, ['+']));
+  app.append(frag,
+    el('button', { class: 'fab', 'aria-label': 'Add card', onclick: () => { state.view = { name: 'add' }; render(); } }, ['+']));
 }
+
+function listTile(c) {
+  const tile = el('button', {
+    class: 'card-tile', style: `background:${c.color}`, 'data-card-id': c.id,
+    onclick: () => { if (suppressClick) return; state.view = { name: 'detail', id: c.id }; render(); },
+  }, [
+    el('div', { class: 'tile-name' }, [c.name]),
+    c.number ? el('div', { class: 'tile-num' }, [groupNumber(c.number)]) : null,
+    el('span', {
+      class: `tile-star${c.favorite ? ' on' : ''}`, 'aria-label': c.favorite ? 'Remove favorite' : 'Add favorite',
+      onclick: async (e) => {
+        e.stopPropagation();
+        await db.putCard({ ...c, favorite: !c.favorite });
+        render();
+      },
+    }, [c.favorite ? '★' : '☆']),
+  ]);
+  return tile;
+}
+
+/* Long-press drag-and-drop reordering across the favorites + all-cards grids. */
+let suppressClick = false;
+function enableDragReorder(root, orderedCards) {
+  let dragged = null;
+  let pressTimer = null;
+  let startX = 0, startY = 0;
+
+  const tiles = () => Array.from(root.querySelectorAll('.card-tile'));
+
+  root.addEventListener('pointerdown', (e) => {
+    const tile = e.target.closest?.('.card-tile');
+    if (!tile || e.button) return;
+    startX = e.clientX; startY = e.clientY;
+    pressTimer = setTimeout(() => {
+      dragged = tile;
+      tile.classList.add('dragging');
+      if (navigator.vibrate) navigator.vibrate(30);
+      suppressClick = true;
+      try { tile.setPointerCapture(e.pointerId); } catch {}
+    }, 350);
+  });
+
+  root.addEventListener('pointermove', (e) => {
+    if (!dragged) {
+      if (pressTimer && Math.hypot(e.clientX - startX, e.clientY - startY) > 12) {
+        clearTimeout(pressTimer); pressTimer = null;
+      }
+      return;
+    }
+    e.preventDefault();
+    const r = dragged.getBoundingClientRect();
+    dragged.style.transform = `translate(${e.clientX - startX}px, ${e.clientY - startY}px)`;
+    for (const t of tiles()) {
+      if (t === dragged) continue;
+      const tr = t.getBoundingClientRect();
+      const hit = e.clientX >= tr.left && e.clientX <= tr.right && e.clientY >= tr.top && e.clientY <= tr.bottom;
+      t.classList.toggle('drop-target', hit);
+    }
+  }, { passive: false });
+
+  const finish = async (e) => {
+    clearTimeout(pressTimer); pressTimer = null;
+    if (!dragged) return;
+    const tile = dragged;
+    dragged = null;
+    tile.classList.remove('dragging');
+    tile.style.transform = '';
+    const target = tiles().find((t) => t.classList.contains('drop-target'));
+    tiles().forEach((t) => t.classList.remove('drop-target'));
+    if (!target) return;
+    const draggedId = tile.dataset.cardId;
+    const targetId = target.dataset.cardId;
+    if (!draggedId || !targetId || draggedId === targetId) return;
+    const ids = orderedCards.map((c) => c.id);
+    const fromIdx = ids.indexOf(draggedId);
+    const wasBefore = fromIdx < ids.indexOf(targetId);
+    ids.splice(fromIdx, 1);
+    const tIdx = ids.indexOf(targetId);
+    ids.splice(wasBefore ? tIdx + 1 : tIdx, 0, draggedId);
+    const byId = new Map(orderedCards.map((c) => [c.id, c]));
+    for (let i = 0; i < ids.length; i++) {
+      const card = byId.get(ids[i]);
+      if (card && (card.sort ?? 0) !== i) await db.putCard({ ...card, sort: i });
+    }
+    setTimeout(() => { suppressClick = false; }, 0);
+    render();
+  };
+  root.addEventListener('pointerup', finish);
+  root.addEventListener('pointercancel', finish);
+}
+
 
 /* ---------------- Card detail ---------------- */
 async function renderDetail(id) {
@@ -107,11 +208,22 @@ async function renderDetail(id) {
   ]);
 
   const canvas = face.querySelector('canvas');
-  const ok = renderBarcode(canvas, card.number || '', card.format || 'CODE128');
-  if (!ok) {
-    canvas.replaceWith(el('div', { style: 'color:#a1a1aa;padding:20px;font-size:13px' },
-      ['Barcode could not be rendered for this number/format — QR fallback coming soon.']));
-  }
+  const mode = displayMode(card);
+  const renderCode = async () => {
+    const m = displayMode(card);
+    const ok = m === 'qr'
+      ? await renderQR(canvas, card.number || '')
+      : renderBarcode(canvas, card.number || '', card.format || 'CODE128');
+    canvas.style.display = ok ? '' : 'none';
+    let msg = face.querySelector('.code-error');
+    if (!ok && !msg) {
+      msg = el('div', { class: 'code-error', style: 'color:#a1a1aa;padding:20px 0;font-size:13px' },
+        ['Code could not be rendered for this number/format.']);
+      canvas.after(msg);
+    }
+    if (msg) msg.style.display = ok ? 'none' : '';
+  };
+  renderCode();
 
   const container = el('div', {}, [header]);
   if (state.view.justAdded) {
@@ -133,6 +245,29 @@ async function renderDetail(id) {
     el('div', { class: 'detail-actions' }, [
       el('button', { onclick: () => editCard(card) }, ['✏️ Edit']),
       el('button', { onclick: async () => { face.requestFullscreen?.().catch(() => {}); face.classList.add('face-bright'); } }, ['🔆 Bright']),
+      el('button', {
+        onclick: async () => {
+          const next = displayMode(card) === 'qr' ? 'barcode' : 'qr';
+          await db.putCard({ ...card, displayFormat: next });
+          toast(next === 'qr' ? 'Showing QR code' : 'Showing barcode');
+          render();
+        },
+      }, [displayMode(card) === 'qr' ? '▭ Switch to barcode' : '▣ Switch to QR']),
+      el('button', {
+        onclick: async () => {
+          await db.putCard({ ...card, favorite: !card.favorite });
+          toast(card.favorite ? 'Removed from favorites' : 'Added to favorites');
+          render();
+        },
+      }, [card.favorite ? '★ Unfavorite' : '☆ Favorite']),
+      el('button', {
+        onclick: async () => {
+          if (!confirm(`Archive "${card.name}"? You can restore it in Settings.`)) return;
+          await db.putCard({ ...card, archived: true });
+          toast('Card archived');
+          goList();
+        },
+      }, ['🗄 Archive']),
       el('button', { class: 'danger', onclick: async () => { await db.deleteCard(card.id); toast('Card deleted'); goList(); } }, ['🗑 Delete']),
     ]),
     others.length ? el('div', { class: 'section-label' }, ['Next card']) : null,
@@ -232,7 +367,7 @@ function renderNumber({ catalogId }) {
     const number = numInput.value.trim();
     if (!cardName) return toast('Please enter a card name');
     if (!number) return toast('Please enter or scan a card number');
-    await db.putCard({ id: uid(), name: cardName, color, format, number, notes: '', archived: false, createdAt: Date.now() });
+    await db.putCard({ id: uid(), name: cardName, color, format, number, notes: '', archived: false, favorite: false, sort: (await db.listCards()).length, createdAt: Date.now() });
     stopVideo();
     state.view = { name: 'detail', justAdded: true, id: undefined };
     // find the card we just saved
@@ -284,6 +419,51 @@ async function renderEdit(id) {
   ]));
 }
 
+/* ---------------- Archived cards ---------------- */
+async function renderArchived() {
+  const cards = (await db.listCards()).filter((c) => c.archived).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  app.append(
+    el('div', { class: 'topbar' }, [
+      el('button', { class: 'icon-btn back', 'aria-label': 'Back', onclick: goSettings }, ['←']),
+      el('h1', {}, ['Archived cards']),
+    ]),
+  );
+  if (!cards.length) {
+    app.append(el('div', { class: 'empty-state' }, [
+      el('div', { class: 'big-ico' }, ['🗄️']),
+      el('div', { class: 'caption' }, ['No archived cards']),
+    ]));
+    return;
+  }
+  for (const c of cards) {
+    app.append(el('div', { class: 'row-card' }, [
+      el('span', { class: 'arch-dot', style: `background:${c.color}` }),
+      el('div', { class: 'row-value' }, [
+        el('div', { class: 'row-title' }, [c.name]),
+        el('div', { style: 'font-size:13px;color:var(--muted)' }, [c.number || '']),
+      ]),
+      el('button', {
+        onclick: async () => {
+          await db.putCard({ ...c, archived: false });
+          toast('Card restored');
+          render();
+        },
+      }, ['↩️ Restore']),
+      el('button', {
+        class: 'danger',
+        onclick: async () => {
+          if (!confirm(`Permanently delete "${c.name}"? This cannot be undone.`)) return;
+          await db.deleteCard(c.id);
+          toast('Card deleted permanently');
+          render();
+        },
+      }, ['🗑']),
+    ]));
+  }
+}
+
+function goSettings() { state.tab = 'settings'; state.view = { name: 'settings' }; render(); }
+
 /* ---------------- Offers placeholder ---------------- */
 function renderOffers() {
   app.append(
@@ -327,6 +507,9 @@ function renderSettings() {
       },
     }, ['🌙 Toggle dark theme']),
     el('button', {
+      onclick: () => { state.view = { name: 'archived' }; render(); },
+    }, ['🗄 Archived cards']),
+    el('button', {
       onclick: async () => {
         if (!confirm('Delete ALL cards? This cannot be undone.')) return;
         await db.clearCards(); toast('All cards deleted'); render();
@@ -353,10 +536,11 @@ function render() {
     add: () => renderAdd(),
     number: () => renderNumber(v),
     edit: () => renderEdit(v.id),
+    archived: () => renderArchived(),
     offers: () => renderOffers(),
     settings: () => renderSettings(),
   };
-  Promise.resolve(jobs[v.name] || jobs.list).then(() => renderNav());
+  Promise.resolve(jobs[v.name] || jobs.list).then((job) => job()).then(() => renderNav());
   if (v.name === 'number') { /* video cleanup handled in renderNumber */ }
 }
 let stopGlobalVideo = null;

@@ -53,6 +53,15 @@ a { color: inherit; }
 .card-tile .tile-name { font-weight: 700; font-size: 15px; text-shadow: 0 1px 2px rgba(0,0,0,.25); word-break: break-word; }
 .card-tile .tile-num { font-size: 11px; opacity: .85; }
 .card-tile.archived { opacity: .5; }
+.card-tile .tile-star {
+  position: absolute; top: 6px; right: 8px; font-size: 18px; color: rgba(255,255,255,.75);
+  text-shadow: 0 1px 2px rgba(0,0,0,.4);
+}
+.card-tile .tile-star.on { color: #fde047; }
+.card-tile { position: relative; }
+.card-tile.dragging { opacity: .85; z-index: 30; box-shadow: 0 8px 24px rgba(0,0,0,.35); transition: none; }
+.card-tile.drop-target { outline: 2px dashed #fff; outline-offset: -4px; }
+.arch-dot { width: 34px; height: 34px; border-radius: 8px; flex: none; }
 
 /* ---------- Floating action button ---------- */
 .fab {
