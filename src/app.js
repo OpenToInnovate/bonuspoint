@@ -2,9 +2,11 @@
  * Bonus Point — app shell & views (vanilla JS, hash-less view switching).
  */
 import { db } from './db.js';
-import { CATALOG, FORMATS } from './catalog.js';
+import { CATALOG, FORMATS, REGION_LABELS } from './catalog.js';
+import { regionMatches } from './region.js';
 import { renderBarcode, renderQR, displayMode, groupNumber } from './barcode.js';
 import { startScan, nativeDetectorSupported } from './scanner.js';
+import { detectRegion, REGIONS } from './region.js';
 import './styles.css';
 
 const app = document.getElementById('app');
@@ -14,6 +16,15 @@ const state = {
   tab: 'cards',          // cards | offers | settings
   view: { name: 'list' } // { name, ...params }
 };
+
+/* UI-only state (not persisted cards) */
+let searchQuery = '';
+let showAllRegions = false; // add-card "Show all regions" toggle
+
+async function effectiveRegion() {
+  const stored = await db.getSetting('region');
+  return stored && stored !== 'auto' ? stored : detectRegion();
+}
 
 function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
@@ -56,46 +67,93 @@ function viewIsTabLevel() {
 }
 
 /* ---------------- Cards list ---------------- */
+const SORTS = [
+  { id: 'recent', label: 'Recently used' },
+  { id: 'az', label: 'A–Z' },
+  { id: 'custom', label: 'Custom' },
+];
+let currentSort = localStorage.getItem('bp-sort') || 'recent';
+
+function sortCards(cards, mode) {
+  const copy = [...cards];
+  if (mode === 'az') copy.sort((a, b) => a.name.localeCompare(b.name));
+  else if (mode === 'custom') copy.sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
+  else copy.sort((a, b) => (b.lastUsedAt || b.createdAt || 0) - (a.lastUsedAt || a.createdAt || 0));
+  return copy;
+}
+
 async function renderCardsList() {
   const all = (await db.listCards()).filter((c) => !c.archived);
-  all.sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
-  const favorites = all.filter((c) => c.favorite);
-  const rest = all.filter((c) => !c.favorite);
 
-  const header = el('div', { class: 'topbar' }, [
-    el('h1', {}, ['Cards']),
+  const header = el('div', { class: 'topbar list-header' }, [
+    el('span', { class: 'icon-btn back', 'aria-hidden': 'true' }, ['←']),
+    el('h1', { class: 'centered-title' }, ['Loyalty Cards']),
     el('button', { class: 'icon-btn', 'aria-label': 'Add card', onclick: () => { state.view = { name: 'add' }; render(); } }, ['+']),
   ]);
 
-  const frag = el('div');
-  frag.append(header);
+  const search = el('input', {
+    class: 'search-bar', type: 'search', placeholder: 'Search cards',
+    value: searchQuery,
+    oninput: (e) => { searchQuery = e.target.value; updateGrid(); },
+  });
 
-  if (!all.length) {
-    const grid = el('div', { class: 'cards-grid' });
-    grid.append(
-      el('div', { class: 'empty-state', style: 'grid-column:1/-1' }, [
-        el('div', { class: 'big-ico' }, ['🎟️']),
-        el('div', { style: 'font-weight:700;font-size:18px' }, ['No cards yet']),
-        el('button', { class: 'btn-red', onclick: () => { state.view = { name: 'add' }; render(); } }, ['Add your first card']),
-      ]),
-    );
-    frag.append(el('div', { class: 'section-label' }, ['All cards']), grid);
-  } else {
-    const makeGrid = (cards, label) => {
-      const wrap = el('div');
-      if (label && cards.length) wrap.append(el('div', { class: 'section-label' }, [label]));
-      const grid = el('div', { class: 'cards-grid' });
-      for (const c of cards) grid.append(listTile(c));
-      wrap.append(grid);
-      return wrap;
-    };
-    frag.append(makeGrid(favorites, favorites.length ? 'Favorites' : null));
-    frag.append(makeGrid(rest, 'All cards'));
-    enableDragReorder(frag, [...favorites, ...rest]);
+  // Recents chips: brands of recently used + favorited cards. Hidden when empty.
+  const recentCards = all
+    .filter((c) => c.lastUsedAt || c.favorite)
+    .sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0) || (b.createdAt || 0) - (a.createdAt || 0))
+    .slice(0, 10);
+  const chipsWrap = el('div', { class: 'chips-row', 'data-testid': 'recents-row' });
+  for (const c of recentCards) {
+    chipsWrap.append(el('button', {
+      class: 'brand-chip', style: `background:${c.color}`, 'aria-label': c.name,
+      title: c.name,
+      onclick: () => { state.view = { name: 'detail', id: c.id }; render(); },
+    }, [el('span', {}, [(c.name || '?').trim().charAt(0).toUpperCase()])]));
   }
 
-  app.append(frag,
-    el('button', { class: 'fab', 'aria-label': 'Add card', onclick: () => { state.view = { name: 'add' }; render(); } }, ['+']));
+  const sectionHead = el('div', { class: 'section-head' }, [
+    el('span', { class: 'count-label', 'data-testid': 'cards-count' }, ['']),
+    el('button', { class: 'sort-link', 'data-testid': 'sort-link', onclick: cycleSort }, ['Sort by']),
+  ]);
+
+  const grid = el('div', { class: 'cards-grid', 'data-testid': 'cards-grid' });
+  const frag = el('div');
+  frag.append(header, search, chipsWrap, sectionHead, grid);
+
+  const countLabel = sectionHead.querySelector('.count-label');
+  const updateGrid = () => {
+    const q = searchQuery.trim().toLowerCase();
+    const visible = q ? all.filter((c) => c.name.toLowerCase().includes(q)) : all;
+    countLabel.textContent = `${visible.length} loyalty card${visible.length === 1 ? '' : 's'}`;
+    grid.innerHTML = '';
+    for (const c of sortCards(visible, currentSort)) grid.append(listTile(c));
+    grid.append(el('button', {
+      class: 'card-tile add-tile', 'aria-label': 'Add card',
+      onclick: () => { state.view = { name: 'add' }; render(); },
+    }, [el('span', { class: 'add-plus' }, ['+'])]));
+  };
+  updateGrid();
+
+  function cycleSort() {
+    const idx = SORTS.findIndex((s) => s.id === currentSort);
+    currentSort = SORTS[(idx + 1) % SORTS.length].id;
+    localStorage.setItem('bp-sort', currentSort);
+    toast(`Sorted: ${SORTS.find((s) => s.id === currentSort).label}`);
+    updateGrid();
+  }
+
+  if (!all.length) {
+    grid.innerHTML = '';
+    grid.append(el('div', { class: 'empty-state', style: 'grid-column:1/-1' }, [
+      el('div', { class: 'big-ico' }, ['🎟️']),
+      el('div', { style: 'font-weight:700;font-size:18px' }, ['No cards yet']),
+      el('button', { class: 'btn-red', onclick: () => { state.view = { name: 'add' }; render(); } }, ['Add your first card']),
+    ]));
+  } else {
+    enableDragReorder(grid, sortCards(all, 'custom'));
+  }
+
+  app.append(frag);
 }
 
 function listTile(c) {
@@ -194,6 +252,12 @@ async function renderDetail(id) {
   const card = await db.getCard(id);
   if (!card) { state.view = { name: 'list' }; return render(); }
 
+  // Opening the barcode view counts as a use — drives recents + Recently used sort.
+  if (!card.lastUsedAt || Date.now() - card.lastUsedAt > 60_000) {
+    card.lastUsedAt = Date.now();
+    await db.putCard(card);
+  }
+
   const header = el('div', { class: 'topbar' }, [
     el('button', { class: 'icon-btn back', 'aria-label': 'Back', onclick: () => { state.view = { name: 'list' }; render(); } }, ['←']),
     el('h1', {}, ['Card']),
@@ -289,25 +353,40 @@ function editCard(card) {
 function goList() { state.tab = 'cards'; state.view = { name: 'list' }; render(); }
 
 /* ---------------- Add card ---------------- */
-function renderAdd() {
+async function renderAdd() {
+  const region = await effectiveRegion();
   const header = el('div', { class: 'topbar' }, [
     el('button', { class: 'icon-btn back', 'aria-label': 'Back', onclick: goList }, ['←']),
     el('h1', {}, ['Add card']),
   ]);
 
-  const grid = el('div', { class: 'popular-grid' });
-  for (const item of CATALOG) {
-    grid.append(el('button', {
-      class: 'card-tile', style: `background:${item.color}`,
-      onclick: () => { state.view = { name: 'number', catalogId: item.id }; render(); },
-    }, [el('div', { class: 'tile-name', style: 'text-align:center;font-size:13px' }, [item.name])]));
-  }
-  grid.append(el('button', {
-    class: 'card-tile', style: 'background:#52525b',
-    onclick: () => { state.view = { name: 'number', catalogId: null }; render(); },
-  }, [el('div', { class: 'tile-name', style: 'text-align:center;font-size:13px' }, ['＋ Custom card'])]));
+  const label = el('div', { class: 'section-label', 'data-testid': 'popular-label' }, [
+    `Popular cards — ${REGION_LABELS[region] || region}`,
+  ]);
 
-  app.append(header, el('div', { class: 'section-label' }, ['Popular cards']), grid,
+  const grid = el('div', { class: 'popular-grid' });
+  const fill = () => {
+    grid.innerHTML = '';
+    const list = CATALOG.filter((item) => showAllRegions || regionMatches(item.regions, region));
+    for (const item of list) {
+      grid.append(el('button', {
+        class: 'card-tile', style: `background:${item.color}`,
+        onclick: () => { state.view = { name: 'number', catalogId: item.id }; render(); },
+      }, [el('div', { class: 'tile-name', style: 'text-align:center;font-size:13px' }, [item.name])]));
+    }
+    grid.append(el('button', {
+      class: 'card-tile', style: 'background:#52525b',
+      onclick: () => { state.view = { name: 'number', catalogId: null }; render(); },
+    }, [el('div', { class: 'tile-name', style: 'text-align:center;font-size:13px' }, ['＋ Custom card'])]));
+  };
+  fill();
+
+  const toggle = el('button', {
+    class: 'show-all-toggle', 'data-testid': 'show-all-toggle',
+    onclick: () => { showAllRegions = !showAllRegions; toggle.textContent = showAllRegions ? 'Show my region only' : 'Show all regions'; fill(); },
+  }, [showAllRegions ? 'Show my region only' : 'Show all regions']);
+
+  app.append(header, label, grid, toggle,
     el('div', { class: 'caption' }, ['Select a card to get started']));
 }
 
@@ -478,9 +557,22 @@ function renderOffers() {
 }
 
 /* ---------------- Settings ---------------- */
-function renderSettings() {
+async function renderSettings() {
   const header = el('div', { class: 'topbar' }, [el('h1', {}, ['Settings'])]);
+
+  const stored = (await db.getSetting('region')) || 'auto';
+  const detected = detectRegion();
+  const regionRow = el('div', { class: 'static-row region-row' }, [
+    el('span', {}, ['🌏 Region']),
+    (() => {
+      const sel = el('select', { 'data-testid': 'region-select', class: 'region-select', onchange: async (e) => { await db.putSetting('region', e.target.value); toast(e.target.value === 'auto' ? `Region: auto (${detected})` : `Region: ${e.target.value}`); } },
+        REGIONS.map((r) => el('option', { value: r.id, selected: r.id === stored ? '' : null }, [r.id === 'auto' ? `Auto (${detected})` : r.label])));
+      return sel;
+    })(),
+  ]);
+
   const group = el('div', { class: 'settings-group' }, [
+    regionRow,
     el('button', {
       onclick: async () => {
         const json = await db.export();
@@ -518,7 +610,7 @@ function renderSettings() {
   ]);
   app.append(header, group,
     el('div', { class: 'settings-note' }, [
-      `Bonus Point v0.1.0 — offline-first loyalty card wallet.`,
+      `Bonus Point v0.2.0 — offline-first loyalty card wallet.`,
       el('br'), 'No accounts. No ads. No tracking. Your cards never leave this device.',
     ]));
 }
