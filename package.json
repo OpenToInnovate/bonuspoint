@@ -1,18 +1,20 @@
 {
   "name": "bonus-point",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "description": "Offline-first loyalty card wallet. No ads. No tracking.",
-  "main": "index.js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "smoke": "node scripts/smoke.mjs"
   },
   "keywords": [],
-  "author": "",
+  "author": "OpenToInnovate",
   "license": "MIT",
   "type": "commonjs",
   "devDependencies": {
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^30.0.1",
     "vite": "^8.2.2"
   },
   "dependencies": {
