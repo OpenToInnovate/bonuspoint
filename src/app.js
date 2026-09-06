@@ -10,8 +10,12 @@ import { startScan, mapScanFormat, decodeImageFile } from './scanner.js';
 import { detectRegion, REGIONS } from './region.js';
 import './styles.css';
 
-const app = document.getElementById('app');
+let app = document.getElementById('app'); // views append here; render() swaps hosts
 let toastTimer = null;
+let activeCleanup = null; // e.g. camera teardown for the scan view
+
+/* First character safe for surrogate pairs (emoji / unicode names). */
+const firstChar = (s) => [...String(s || '?').trim()][0] || '?';
 
 const state = {
   tab: 'cards',          // cards | offers | settings
@@ -21,6 +25,26 @@ const state = {
 /* UI-only state (not persisted cards) */
 let searchQuery = '';
 let showAllRegions = false; // add-card "Show all regions" toggle
+
+/* History integration: every view change pushes a history entry so the
+ * browser / Android hardware back button walks the view stack instead of
+ * exiting the app. */
+const TAB_OF_VIEW = { list: 'cards', offers: 'offers', settings: 'settings' };
+function navigate(view, { replace = false } = {}) {
+  if (TAB_OF_VIEW[view.name]) state.tab = TAB_OF_VIEW[view.name];
+  state.view = view;
+  const entry = { view, tab: state.tab };
+  if (replace) history.replaceState(entry, '');
+  else history.pushState(entry, '');
+  render();
+}
+
+window.addEventListener('popstate', (e) => {
+  const s = e.state;
+  state.view = s?.view?.name ? s.view : { name: 'list' };
+  state.tab = s?.tab || TAB_OF_VIEW[state.view.name] || 'cards';
+  render();
+});
 
 async function effectiveRegion() {
   const stored = await db.getSetting('region');
@@ -59,7 +83,7 @@ function renderNav() {
   app.append(nav);
 }
 function navBtn(label, ico, tab) {
-  return el('button', { class: state.tab === tab && viewIsTabLevel() ? 'active' : '', onclick: () => { state.tab = tab; state.view = { name: tab === 'cards' ? 'list' : tab }; render(); } }, [
+  return el('button', { class: state.tab === tab && viewIsTabLevel() ? 'active' : '', onclick: () => navigate({ name: tab === 'cards' ? 'list' : tab }) }, [
     el('span', { class: 'nav-ico' }, [ico]), label,
   ]);
 }
@@ -89,11 +113,11 @@ async function renderCardsList() {
   const header = el('div', { class: 'topbar list-header' }, [
     el('span', { class: 'icon-btn back', 'aria-hidden': 'true' }, ['←']),
     el('h1', { class: 'centered-title' }, ['Loyalty Cards']),
-    el('button', { class: 'icon-btn', 'aria-label': 'Add card', onclick: () => { state.view = { name: 'add' }; render(); } }, ['+']),
+    el('button', { class: 'icon-btn', 'aria-label': 'Add card', onclick: () => navigate({ name: 'add' }) }, ['+']),
   ]);
 
   const search = el('input', {
-    class: 'search-bar', type: 'search', placeholder: 'Search cards',
+    class: 'search-bar', type: 'search', placeholder: 'Search cards', 'aria-label': 'Search cards',
     value: searchQuery,
     oninput: (e) => { searchQuery = e.target.value; updateGrid(); },
   });
@@ -108,8 +132,8 @@ async function renderCardsList() {
     chipsWrap.append(el('button', {
       class: 'brand-chip', style: `background:${c.color}`, 'aria-label': c.name,
       title: c.name,
-      onclick: () => { state.view = { name: 'detail', id: c.id }; render(); },
-    }, [el('span', {}, [(c.name || '?').trim().charAt(0).toUpperCase()])]));
+      onclick: () => navigate({ name: 'detail', id: c.id }),
+    }, [el('span', {}, [firstChar(c.name)])]));
   }
 
   const sectionHead = el('div', { class: 'section-head' }, [
@@ -128,9 +152,14 @@ async function renderCardsList() {
     countLabel.textContent = `${visible.length} loyalty card${visible.length === 1 ? '' : 's'}`;
     grid.innerHTML = '';
     for (const c of sortCards(visible, currentSort)) grid.append(listTile(c));
+    if (!visible.length) {
+      grid.append(el('div', { class: 'empty-state', style: 'grid-column:1/-1' }, [
+        el('div', { class: 'caption', style: 'padding:24px 0' }, ['No cards match your search']),
+      ]));
+    }
     grid.append(el('button', {
       class: 'card-tile add-tile', 'aria-label': 'Add card',
-      onclick: () => { state.view = { name: 'add' }; render(); },
+      onclick: () => navigate({ name: 'add' }),
     }, [el('span', { class: 'add-plus' }, ['+'])]));
   };
   updateGrid();
@@ -144,16 +173,19 @@ async function renderCardsList() {
   }
 
   if (!all.length) {
-    grid.innerHTML = '';
-    grid.append(el('div', { class: 'empty-state', style: 'grid-column:1/-1' }, [
+    // First run: hide search/chips/sort chrome — a clean, welcoming empty state.
+    search.remove(); chipsWrap.remove(); sectionHead.remove();
+    frag.append(el('div', { class: 'empty-state' }, [
       el('div', { class: 'big-ico' }, ['🎟️']),
-      el('div', { style: 'font-weight:700;font-size:18px' }, ['No cards yet']),
-      el('button', { class: 'btn-red', onclick: () => { state.view = { name: 'add' }; render(); } }, ['Add your first card']),
+      el('div', { style: 'font-weight:700;font-size:18px' }, ['Welcome to Bonus Point']),
+      el('div', { class: 'caption', style: 'padding:8px 12px' },
+        ['Add your loyalty cards once — they live on this device and work offline.']),
+      el('button', { class: 'btn-red', onclick: () => navigate({ name: 'add' }) }, ['Add your first card']),
     ]));
-  } else {
-    enableDragReorder(grid, sortCards(all, 'custom'));
+    app.append(frag);
+    return;
   }
-
+  enableDragReorder(grid, sortCards(all, 'custom'));
   app.append(frag);
 }
 
@@ -162,7 +194,7 @@ function listTile(c) {
     class: 'card-tile', style: `background:${c.color || '#52525b'}`, 'data-card-id': c.id,
     onclick: () => { if (suppressClick) return; state.view = { name: 'detail', id: c.id }; render(); },
   }, [
-    logoImg(c.logo, c.ink) || el('div', { class: 'tile-letter', style: `color:${c.text || '#fff'}` }, [(c.name || '?').trim().charAt(0).toUpperCase()]),
+    logoImg(c.logo, c.ink) || el('div', { class: 'tile-letter', style: `color:${c.text || '#fff'}` }, [firstChar(c.name)]),
     el('div', { class: 'tile-name', style: `color:${c.text || '#fff'}` }, [c.name]),
     c.number ? el('div', { class: 'tile-num' }, [groupNumber(c.number)]) : null,
     el('span', {
@@ -226,6 +258,9 @@ function enableDragReorder(root, orderedCards) {
     tile.style.transform = '';
     const target = tiles().find((t) => t.classList.contains('drop-target'));
     tiles().forEach((t) => t.classList.remove('drop-target'));
+    // Always release the click guard — a long-press with no drop must not
+    // leave subsequent taps dead.
+    setTimeout(() => { suppressClick = false; }, 0);
     if (!target) return;
     const draggedId = tile.dataset.cardId;
     const targetId = target.dataset.cardId;
@@ -241,7 +276,6 @@ function enableDragReorder(root, orderedCards) {
       const card = byId.get(ids[i]);
       if (card && (card.sort ?? 0) !== i) await db.putCard({ ...card, sort: i });
     }
-    setTimeout(() => { suppressClick = false; }, 0);
     render();
   };
   root.addEventListener('pointerup', finish);
@@ -265,7 +299,7 @@ function manageRow({ icon, label, sub, danger, onclick }) {
 
 async function renderDetail(id) {
   const card = await db.getCard(id);
-  if (!card) { state.view = { name: 'list' }; return render(); }
+  if (!card) return navigate({ name: 'list' }, { replace: true });
 
   // Opening the barcode view counts as a use — drives recents + Recently used sort.
   if (!card.lastUsedAt || Date.now() - card.lastUsedAt > 60_000) {
@@ -285,7 +319,7 @@ async function renderDetail(id) {
     }
   }
   const header = el('div', { class: 'topbar detail-topbar' }, [
-    el('button', { class: 'icon-btn back', 'aria-label': 'Back', onclick: () => { state.view = { name: 'list' }; render(); } }, ['←']),
+    el('button', { class: 'icon-btn back', 'aria-label': 'Back', onclick: () => navigate({ name: 'list' }) }, ['←']),
     el('h1', {}, [card.name]),
   ]);
 
@@ -297,7 +331,7 @@ async function renderDetail(id) {
     ]),
     el('div', { class: 'face-body' }, [
       el('canvas', { id: 'barcode-canvas' }),
-      el('div', { class: 'card-number' }, [groupNumber(card.number || '—')]),
+      el('div', { class: `card-number${(card.number || '').length > 24 ? ' long' : ''}` }, [groupNumber(card.number || '—')]),
     ]),
   ]);
 
@@ -381,7 +415,7 @@ async function renderDetail(id) {
     for (const c of others) {
       strip.append(el('button', {
         class: 'row-card small-tile', style: `background:${c.color || '#52525b'}`,
-        onclick: () => { state.view = { name: 'detail', id: c.id }; render(); },
+        onclick: () => navigate({ name: 'detail', id: c.id }),
       }, [el('div', { style: `font-weight:700;font-size:11px;text-align:center;word-break:break-word;color:${c.text || '#fff'}` }, [c.name])]));
     }
     container.append(el('div', { class: 'manage-head' }, ['Next card']), strip);
@@ -390,12 +424,9 @@ async function renderDetail(id) {
   app.append(container);
 }
 
-function editCard(card) {
-  state.view = { name: 'edit', id: card.id };
-  render();
-}
+function editCard(card) { navigate({ name: 'edit', id: card.id }); }
 
-function goList() { state.tab = 'cards'; state.view = { name: 'list' }; render(); }
+function goList() { navigate({ name: 'list' }, { replace: true }); }
 
 /* Bundled brand logo (imported at build time from src/assets/logos — never fetched at runtime). */
 function logoImg(id, ink = '#ffffff') {
@@ -430,7 +461,7 @@ async function renderAdd() {
     for (const item of list) {
       grid.append(el('button', {
         class: 'card-tile', style: `background:${item.color}`,
-        onclick: () => { state.view = { name: 'number', catalogId: item.id }; render(); },
+        onclick: () => navigate({ name: 'number', catalogId: item.id }),
       }, [
         logoImg(item.id, item.ink),
         el('div', { class: 'tile-name', style: `text-align:center;font-size:12px;color:${item.text || '#fff'}` }, [item.name]),
@@ -438,7 +469,7 @@ async function renderAdd() {
     }
     grid.append(el('button', {
       class: 'card-tile', style: 'background:#52525b',
-      onclick: () => { state.view = { name: 'number', catalogId: null }; render(); },
+      onclick: () => navigate({ name: 'number', catalogId: null }),
     }, [el('div', { class: 'tile-name', style: 'text-align:center;font-size:12px' }, ['＋ Custom card'])]));
   };
   fill();
@@ -461,7 +492,7 @@ function renderNumber({ catalogId }) {
   let stopScan = null;
 
   const header = el('div', { class: 'topbar scan-header' }, [
-    el('button', { class: 'icon-btn back', 'aria-label': 'Back', onclick: () => { stopScan?.(); stopVideo(); state.view = { name: 'add' }; render(); } }, ['←']),
+    el('button', { class: 'icon-btn back', 'aria-label': 'Back', onclick: () => { stopVideo(); navigate({ name: 'add' }); } }, ['←']),
     el('div', { class: 'scan-title' }, [
       preset ? el('span', { class: 'scan-brand' }, [preset.name]) : null,
       el('h1', {}, ['Scan barcode']),
@@ -495,9 +526,9 @@ function renderNumber({ catalogId }) {
     };
     if (disp) card.displayFormat = disp; // scanned pattern wins
     await db.putCard(card);
-    stopScan?.(); stopVideo();
-    state.view = { name: 'detail', justAdded: true, id: card.id };
-    render();
+    stopVideo();
+    activeCleanup = null;
+    navigate({ name: 'detail', justAdded: true, id: card.id }, { replace: true });
   };
 
   const onScan = ({ text, format: rawFormat }) => {
@@ -531,12 +562,15 @@ function renderNumber({ catalogId }) {
   };
   const stopVideo = () => { video._stream?.getTracks().forEach((t) => t.stop()); stopScan?.(); };
 
-  const manualForm = el('div', { class: 'form scan-form', style: 'display:none' }, [
+  const manualForm = el('form', {
+    class: 'form scan-form', style: 'display:none',
+    onsubmit: (e) => { e.preventDefault(); save({ name: nameInput.value, number: numInput.value, format, displayFormat }); },
+  }, [
     !preset ? el('div', { class: 'field' }, [el('label', {}, ['Name']), nameInput]) : null,
     el('div', { class: 'field' }, [el('label', {}, ['Card number']), numInput]),
     !preset ? el('div', { class: 'field' }, [el('label', {}, ['Color']), colorRow]) : null,
     el('div', { class: 'field' }, [el('label', {}, ['Barcode format']), formatSelect]),
-    el('button', { class: 'btn-primary', onclick: () => save({ name: nameInput.value, number: numInput.value, format, displayFormat }) }, ['Save card']),
+    el('button', { class: 'btn-primary', type: 'submit' }, ['Save card']),
   ]);
 
   const manualRow = el('button', {
@@ -567,6 +601,7 @@ function renderNumber({ catalogId }) {
     el('div', { class: 'scan-actions' }, [manualRow, uploadRow]),
     manualForm);
 
+  activeCleanup = stopVideo; // render() stops the camera when this view is left
   startScanner();
   window.addEventListener('pagehide', stopVideo, { once: true });
 }
@@ -576,28 +611,24 @@ async function renderEdit(id) {
   const card = await db.getCard(id);
   if (!card) return goList();
   const header = el('div', { class: 'topbar' }, [
-    el('button', { class: 'icon-btn back', 'aria-label': 'Back', onclick: () => { state.view = { name: 'detail', id }; render(); } }, ['←']),
+    el('button', { class: 'icon-btn back', 'aria-label': 'Back', onclick: () => navigate({ name: 'detail', id }) }, ['←']),
     el('h1', {}, ['Edit card']),
   ]);
-  const nameInput = el('input', { type: 'text', value: card.name });
-  const numInput = el('input', { type: 'text', value: card.number });
-  const notesInput = el('textarea', { rows: 4, placeholder: 'Notes (e.g. membership terms)' }, [card.notes || ''].filter(Boolean).join(''));
-  const formatSelect = el('select', {}, FORMATS.map((f) => el('option', { value: f, selected: f === card.format ? '' : null }, [f])));
-  app.append(header, el('div', { class: 'form' }, [
+  const nameInput = el('input', { type: 'text', value: card.name, 'aria-label': 'Card name' });
+  const numInput = el('input', { type: 'text', value: card.number, 'aria-label': 'Card number' });
+  const formatSelect = el('select', { 'aria-label': 'Barcode format' }, FORMATS.map((f) => el('option', { value: f, selected: f === card.format ? '' : null }, [f])));
+  app.append(header, el('form', { class: 'form', onsubmit: (e) => { e.preventDefault(); save(); } }, [
     el('div', { class: 'field' }, [el('label', {}, ['Name']), nameInput]),
     el('div', { class: 'field' }, [el('label', {}, ['Card number']), numInput]),
     el('div', { class: 'field' }, [el('label', {}, ['Barcode format']), formatSelect]),
-    el('div', { class: 'field' }, [el('label', {}, ['Notes']), notesInput]),
-    el('button', {
-      class: 'btn-primary',
-      onclick: async () => {
-        await db.putCard({ ...card, name: nameInput.value.trim() || card.name, number: numInput.value.trim(), format: formatSelect.value, notes: notesInput.value });
-        toast('Saved');
-        state.view = { name: 'detail', id };
-        render();
-      },
-    }, ['Save']),
+    el('button', { class: 'btn-primary', type: 'submit' }, ['Save']),
   ]));
+  async function save() {
+    if (!numInput.value.trim()) return toast('Please enter a card number');
+    await db.putCard({ ...card, name: nameInput.value.trim() || card.name, number: numInput.value.trim(), format: formatSelect.value });
+    toast('Saved');
+    navigate({ name: 'detail', id }, { replace: true });
+  }
 }
 
 /* ---------------- Notes ---------------- */
@@ -607,7 +638,7 @@ async function renderNotes(id) {
   const area = el('textarea', { rows: 6, placeholder: 'Notes (e.g. membership terms, expiry)' }, [card.notes || ''].filter(Boolean).join(''));
   app.append(
     el('div', { class: 'topbar' }, [
-      el('button', { class: 'icon-btn back', 'aria-label': 'Back', onclick: () => { state.view = { name: 'detail', id }; render(); } }, ['←']),
+      el('button', { class: 'icon-btn back', 'aria-label': 'Back', onclick: () => navigate({ name: 'detail', id }) }, ['←']),
       el('h1', {}, ['Notes']),
     ]),
     el('div', { class: 'form' }, [
@@ -617,8 +648,7 @@ async function renderNotes(id) {
         onclick: async () => {
           await db.putCard({ ...card, notes: area.value });
           toast('Notes saved');
-          state.view = { name: 'detail', id };
-          render();
+          navigate({ name: 'detail', id }, { replace: true });
         },
       }, ['Save notes']),
     ]),
@@ -657,6 +687,7 @@ async function renderPhotos(id) {
         el('button', {
           class: 'photo-del', 'aria-label': 'Delete photo',
           onclick: async () => {
+            if (!confirm('Delete this photo?')) return;
             photos.splice(i, 1);
             await db.putCard({ ...card, photos });
             fill();
@@ -685,7 +716,7 @@ async function renderPhotos(id) {
 
   app.append(
     el('div', { class: 'topbar' }, [
-      el('button', { class: 'icon-btn back', 'aria-label': 'Back', onclick: () => { state.view = { name: 'detail', id }; render(); } }, ['←']),
+      el('button', { class: 'icon-btn back', 'aria-label': 'Back', onclick: () => navigate({ name: 'detail', id }) }, ['←']),
       el('h1', {}, ['Photos']),
     ]),
     grid,
@@ -724,7 +755,7 @@ async function renderArchived() {
         },
       }, ['↩️ Restore']),
       el('button', {
-        class: 'danger',
+        class: 'danger', 'aria-label': `Delete ${c.name} permanently`,
         onclick: async () => {
           if (!confirm(`Permanently delete "${c.name}"? This cannot be undone.`)) return;
           await db.deleteCard(c.id);
@@ -773,7 +804,8 @@ async function renderSettings() {
         const json = await db.export();
         const blob = new Blob([json], { type: 'application/json' });
         const a = el('a', { href: URL.createObjectURL(blob), download: `bonuspoint-backup-${new Date().toISOString().slice(0, 10)}.json` });
-        a.click(); URL.revokeObjectURL(a.href);
+        document.body.append(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
         toast('Backup exported');
       },
     }, ['⬇️ Export backup (JSON)']),
@@ -788,11 +820,14 @@ async function renderSettings() {
       },
     }, ['⬆️ Import backup (JSON)']),
     el('button', {
+      'aria-label': 'Toggle dark theme',
       onclick: () => {
         document.body.classList.toggle('dark');
         localStorage.setItem('bp-theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+        updateThemeColorMeta();
+        render();
       },
-    }, ['🌙 Toggle dark theme']),
+    }, [`🌙 Dark theme: ${document.body.classList.contains('dark') ? 'On' : 'Off'}`]),
     el('button', {
       onclick: () => { state.view = { name: 'archived' }; render(); },
     }, ['🗄 Archived cards']),
@@ -805,18 +840,18 @@ async function renderSettings() {
   ]);
   app.append(header, group,
     el('div', { class: 'settings-note' }, [
-      `Bonus Point v0.2.0 — offline-first loyalty card wallet.`,
+      `Bonus Point v${__APP_VERSION__} — offline-first loyalty card wallet.`,
       el('br'), 'No accounts. No ads. No tracking. Your cards never leave this device.',
     ]));
 }
 
 /* ---------------- Router ---------------- */
+let renderGen = 0;
 function render() {
-  stopGlobalVideo?.();
-  stopGlobalVideo = null;
-  app.innerHTML = '';
+  const gen = ++renderGen;
+  activeCleanup?.(); // e.g. stop the camera when leaving the scan view
+  activeCleanup = null;
   const v = state.view;
-  const p = v.name === 'detail-added' ? v : v;
   const jobs = {
     list: () => renderCardsList(),
     detail: () => renderDetail(v.id),
@@ -829,18 +864,67 @@ function render() {
     offers: () => renderOffers(),
     settings: () => renderSettings(),
   };
-  Promise.resolve(jobs[v.name] || jobs.list).then((job) => job()).then(() => renderNav());
-  if (v.name === 'number') { /* video cleanup handled in renderNumber */ }
+  // Build into a detached host so a superseded render can never append a
+  // stale view to the live DOM (double-tap / rapid navigation).
+  const host = document.createElement('div');
+  app = host;
+  Promise.resolve(jobs[v.name] || jobs.list)
+    .then((job) => job())
+    .then(() => {
+      if (gen !== renderGen) return;
+      renderNav();
+      swapIn(host);
+    })
+    .catch((e) => {
+      console.error(e);
+      if (gen !== renderGen) return;
+      host.innerHTML = '';
+      host.append(el('div', { class: 'empty-state' }, [
+        el('div', { class: 'big-ico' }, ['⚠️']),
+        el('div', { style: 'font-weight:700;font-size:18px' }, ['Something went wrong']),
+        el('button', { class: 'btn-red', onclick: () => navigate({ name: 'list' }, { replace: true }) }, ['Back to my cards']),
+      ]));
+      renderNav();
+      swapIn(host);
+    });
 }
-let stopGlobalVideo = null;
-window._setStopVideo = (fn) => { stopGlobalVideo = fn; };
 
-// Init theme
-if (localStorage.getItem('bp-theme') === 'dark') document.body.classList.add('dark');
+function swapIn(host) {
+  const live = document.getElementById('app');
+  live.innerHTML = '';
+  live.append(host);
+}
 
-// Service worker
+// Init theme: persisted choice wins, else follow the system preference.
+if (localStorage.getItem('bp-theme') === 'dark'
+  || (!localStorage.getItem('bp-theme') && window.matchMedia?.('(prefers-color-scheme: dark)').matches)) {
+  document.body.classList.add('dark');
+}
+function updateThemeColorMeta() {
+  document.querySelector('meta[name="theme-color"]')
+    ?.setAttribute('content', document.body.classList.contains('dark') ? '#101012' : '#e11d48');
+}
+updateThemeColorMeta();
+
+/* Service worker + lightweight "update available" prompt. */
+function showUpdateBanner() {
+  if (document.querySelector('.sw-update')) return;
+  document.body.append(el('button', { class: 'sw-update', onclick: () => location.reload() },
+    ['🔄 Update available — tap to refresh']));
+}
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(console.warn));
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('./sw.js');
+      reg.addEventListener('updatefound', () => {
+        const w = reg.installing;
+        w?.addEventListener('statechange', () => {
+          if (w.state === 'installed' && navigator.serviceWorker.controller) showUpdateBanner();
+        });
+      });
+    } catch (e) { console.warn('SW registration failed', e); }
+  });
 }
 
+history.replaceState({ view: state.view, tab: state.tab }, '');
 render();
