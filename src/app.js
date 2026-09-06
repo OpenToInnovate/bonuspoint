@@ -161,6 +161,7 @@ function listTile(c) {
     class: 'card-tile', style: `background:${c.color}`, 'data-card-id': c.id,
     onclick: () => { if (suppressClick) return; state.view = { name: 'detail', id: c.id }; render(); },
   }, [
+    logoImg(c.logo),
     el('div', { class: 'tile-name' }, [c.name]),
     c.number ? el('div', { class: 'tile-num' }, [groupNumber(c.number)]) : null,
     el('span', {
@@ -352,6 +353,12 @@ function editCard(card) {
 
 function goList() { state.tab = 'cards'; state.view = { name: 'list' }; render(); }
 
+/* Bundled brand logo (public/logos/<id>.svg, committed to the repo — never fetched at runtime). */
+function logoImg(id) {
+  if (!id) return null;
+  return el('img', { class: 'tile-logo', src: `logos/${id}.svg`, alt: '', draggable: 'false' });
+}
+
 /* ---------------- Add card ---------------- */
 async function renderAdd() {
   const region = await effectiveRegion();
@@ -372,12 +379,15 @@ async function renderAdd() {
       grid.append(el('button', {
         class: 'card-tile', style: `background:${item.color}`,
         onclick: () => { state.view = { name: 'number', catalogId: item.id }; render(); },
-      }, [el('div', { class: 'tile-name', style: 'text-align:center;font-size:13px' }, [item.name])]));
+      }, [
+        logoImg(item.id),
+        el('div', { class: 'tile-name', style: 'text-align:center;font-size:12px' }, [item.name]),
+      ]));
     }
     grid.append(el('button', {
       class: 'card-tile', style: 'background:#52525b',
       onclick: () => { state.view = { name: 'number', catalogId: null }; render(); },
-    }, [el('div', { class: 'tile-name', style: 'text-align:center;font-size:13px' }, ['＋ Custom card'])]));
+    }, [el('div', { class: 'tile-name', style: 'text-align:center;font-size:12px' }, ['＋ Custom card'])]));
   };
   fill();
 
@@ -446,7 +456,7 @@ function renderNumber({ catalogId }) {
     const number = numInput.value.trim();
     if (!cardName) return toast('Please enter a card name');
     if (!number) return toast('Please enter or scan a card number');
-    await db.putCard({ id: uid(), name: cardName, color, format, number, notes: '', archived: false, favorite: false, sort: (await db.listCards()).length, createdAt: Date.now() });
+    await db.putCard({ id: uid(), name: cardName, color, format, number, notes: '', archived: false, favorite: false, sort: (await db.listCards()).length, createdAt: Date.now(), logo: preset?.id || null });
     stopVideo();
     state.view = { name: 'detail', justAdded: true, id: undefined };
     // find the card we just saved

@@ -21,6 +21,11 @@ export const CATALOG = [
   { id: 'holland-barrett', name: 'Holland & Barrett', color: '#00693e', format: 'CODE128', regions: ['GB'] },
   { id: 'jd-sports', name: 'JD Sports', color: '#000000', format: 'CODE128', regions: ['GB'] },
   { id: 'argos', name: 'Argos', color: '#d12732', format: 'CODE128', regions: ['GB'] },
+  { id: 'wagamama', name: 'Wagamama', color: '#000000', format: 'CODE128', regions: ['GB'] },
+  { id: 'nandos', name: "Nando's", color: '#1a1a1a', format: 'CODE128', regions: ['GB'] },
+  { id: 'pret', name: 'Pret A Manger', color: '#8c1724', format: 'CODE128', regions: ['GB'] },
+  { id: 'cafenero', name: 'Caffè Nero', color: '#231f20', format: 'CODE128', regions: ['GB'] },
+  { id: 'starbucks-uk', name: 'Starbucks UK', color: '#00704a', format: 'CODE128', regions: ['GB'] },
 
   // ---------- United States ----------
   { id: 'starbucks', name: 'Starbucks', color: '#00704a', format: 'CODE128', regions: ['US', 'CA'] },
