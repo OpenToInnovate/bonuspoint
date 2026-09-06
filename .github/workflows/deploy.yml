@@ -26,8 +26,8 @@ jobs:
       - run: npm ci
       - run: npm run test:unit
       - run: npm run test:logos
-      - run: npm run test:ux
       - run: npm run test:smoke
+      - run: npm run test:ux
 
   build:
     needs: test
