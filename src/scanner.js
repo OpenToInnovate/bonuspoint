@@ -3,7 +3,7 @@
  * Supported symbologies: EAN-13/8, UPC-A/E, Code 128, Code 39, ITF, QR.
  * startScan(video, onResult) -> stop function.
  */
-import { BrowserMultiFormatReader } from '@zxing/library';
+import { BrowserMultiFormatReader, BarcodeFormat } from '@zxing/library';
 
 const ZXING_MAP = {
   ean_13: 'ean_13', ean_8: 'ean_8', code_128: 'code_128', code_39: 'code_39',
@@ -12,6 +12,37 @@ const ZXING_MAP = {
 
 export function nativeDetectorSupported() {
   return typeof window !== 'undefined' && 'BarcodeDetector' in window;
+}
+
+/**
+ * Map a raw scan symbology to our card storage: `format` (JsBarcode name) and
+ * `displayFormat` ('qr' | 'barcode') so the card opens in the scanned pattern.
+ */
+export function mapScanFormat(rawFormat) {
+  const f = String(rawFormat || '').toLowerCase();
+  if (f === 'qr_code' || f === 'qr') return { format: 'CODE128', displayFormat: 'qr' };
+  const map = {
+    ean_13: 'EAN13', ean_8: 'EAN8', upc_a: 'UPC', upc_e: 'UPC',
+    code_128: 'CODE128', code_39: 'CODE39', itf: 'ITF14',
+  };
+  return { format: map[f] || 'CODE128', displayFormat: 'barcode' };
+}
+
+/** Decode a barcode/QR from an image File (offline, bundled ZXing). */
+export async function decodeImageFile(file) {
+  const reader = new BrowserMultiFormatReader();
+  const url = URL.createObjectURL(file);
+  try {
+    const result = await reader.decodeFromImageUrl(url);
+    return {
+      text: result.getText(),
+      format: Object.keys(BarcodeFormat).find(
+        (k) => BarcodeFormat[k] === result.getBarcodeFormat()
+      ) || 'CODE_128',
+    };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 export async function startScan(video, onResult, onError = console.warn) {

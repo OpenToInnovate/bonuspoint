@@ -257,6 +257,35 @@ a { color: inherit; }
 #scanner-video { width: 100%; max-width: 420px; border-radius: 12px; background: #000; display: block; }
 .scan-hint { text-align: center; color: var(--muted); font-size: 13px; padding: 10px; }
 
+/* ---------- Scan screen (Stocard-style) ---------- */
+.scan-header { justify-content: flex-start; }
+.scan-title { flex: 1; display: flex; flex-direction: column; align-items: center; margin-right: 34px; }
+.scan-title h1 { font-size: 19px; margin: 0; font-weight: 700; }
+.scan-brand { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.viewfinder {
+  position: relative; margin: 6px 16px 0; border-radius: 20px; overflow: hidden;
+  background: #0b0b12; aspect-ratio: 3/3.4; max-height: 52vh;
+}
+.viewfinder video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.scan-frame {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 72%; aspect-ratio: 1.9/1;
+  border: 3px solid rgba(255,255,255,.92); border-radius: 18px;
+  box-shadow: 0 0 0 100vmax rgba(0,0,0,.28);
+  pointer-events: none;
+}
+.scan-actions { margin: 14px 16px 0; background: var(--card); border-radius: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.scan-row {
+  display: flex; width: 100%; align-items: center; gap: 12px;
+  padding: 15px 16px; font-size: 15px; font-weight: 600; text-align: left;
+  border-bottom: 1px solid #f0f0f2;
+}
+.scan-row:last-child { border-bottom: none; }
+.scan-row-ico { font-size: 18px; }
+.scan-row-label { flex: 1; }
+.scan-row .chev { color: #c4c4c8; }
+.scan-form { padding-top: 6px; }
+
 /* ---------- Brightness boost overlay ---------- */
 .face-bright { filter: contrast(1.15) brightness(1.1); }
 .fullscreen-bright:fullscreen { background: #fff; }

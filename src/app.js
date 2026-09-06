@@ -6,7 +6,7 @@ import { CATALOG, FORMATS, REGION_LABELS, identityOf } from './catalog.js';
 import { logoSrc, hasLogo } from './logos.js';
 import { regionMatches } from './region.js';
 import { renderBarcode, renderQR, displayMode, groupNumber } from './barcode.js';
-import { startScan, nativeDetectorSupported } from './scanner.js';
+import { startScan, mapScanFormat, decodeImageFile } from './scanner.js';
 import { detectRegion, REGIONS } from './region.js';
 import './styles.css';
 
@@ -437,19 +437,23 @@ async function renderAdd() {
 function renderNumber({ catalogId }) {
   const preset = catalogId ? CATALOG.find((c) => c.id === catalogId) : null;
   let { color, ink, text } = identityOf(preset);
-  let name = preset?.name || '';
   let format = preset?.format || 'CODE128';
+  let displayFormat = null; // set from scan result; manual entry keeps the format heuristic
   let stopScan = null;
 
-  const header = el('div', { class: 'topbar' }, [
-    el('button', { class: 'icon-btn back', 'aria-label': 'Back', onclick: () => { stopScan?.(); state.view = { name: 'add' }; render(); } }, ['←']),
-    el('h1', {}, [preset ? preset.name : 'Custom card']),
+  const header = el('div', { class: 'topbar scan-header' }, [
+    el('button', { class: 'icon-btn back', 'aria-label': 'Back', onclick: () => { stopScan?.(); stopVideo(); state.view = { name: 'add' }; render(); } }, ['←']),
+    el('div', { class: 'scan-title' }, [
+      preset ? el('span', { class: 'scan-brand' }, [preset.name]) : null,
+      el('h1', {}, ['Scan barcode']),
+    ]),
   ]);
 
   const video = el('video', { id: 'scanner-video', autoplay: true, playsinline: true, muted: true });
-  const scanStatus = el('div', { class: 'scan-hint' }, ['Scanner idle']);
+  const viewfinder = el('div', { class: 'viewfinder' }, [video, el('div', { class: 'scan-frame' })]);
+  const hint = el('div', { class: 'scan-hint' }, ['Point the camera at the barcode or QR code']);
 
-  const nameInput = el('input', { type: 'text', placeholder: 'e.g. My pharmacy card', value: name });
+  const nameInput = el('input', { type: 'text', placeholder: 'e.g. My pharmacy card', value: preset?.name || '' });
   const numInput = el('input', { type: 'text', inputmode: 'numeric', placeholder: 'Card number' });
   const colorRow = el('div', { class: 'color-row' });
   const COLORS = ['#e11d48', '#00704a', '#004f9f', '#cc0000', '#5d6b2e', '#0088cf', '#1a3c8f', '#002d72', '#e50010', '#52525b'];
@@ -457,58 +461,94 @@ function renderNumber({ catalogId }) {
     const dot = el('button', { class: `color-dot${c === color ? ' selected' : ''}`, style: `background:${c}`, onclick: () => { color = c; colorRow.querySelectorAll('.color-dot').forEach((d) => d.classList.remove('selected')); dot.classList.add('selected'); } });
     colorRow.append(dot);
   }
-  const formatSelect = el('select', { onchange: (e) => { format = e.target.value; } },
+  const formatSelect = el('select', { onchange: (e) => { format = e.target.value; displayFormat = null; } },
     FORMATS.map((f) => el('option', { value: f, selected: f === format ? '' : null }, [f])));
 
+  const save = async ({ name, number, format: fmt, displayFormat: disp }) => {
+    const cardName = (name || '').trim();
+    const cardNumber = (number || '').trim();
+    if (!cardName) return toast('Please enter a card name');
+    if (!cardNumber) return toast('Please enter or scan a card number');
+    const card = {
+      id: uid(), name: cardName, color, ink, text, format: fmt, number: cardNumber,
+      notes: '', photos: [], archived: false, favorite: false,
+      sort: (await db.listCards()).length, createdAt: Date.now(), logo: preset?.id || null,
+    };
+    if (disp) card.displayFormat = disp; // scanned pattern wins
+    await db.putCard(card);
+    stopScan?.(); stopVideo();
+    state.view = { name: 'detail', justAdded: true, id: card.id };
+    render();
+  };
+
+  const onScan = ({ text, format: rawFormat }) => {
+    const mapped = mapScanFormat(rawFormat);
+    save({
+      name: preset?.name || nameInput.value.trim() || 'Custom card',
+      number: text,
+      format: mapped.format,
+      displayFormat: mapped.displayFormat,
+    });
+  };
+
   const startScanner = async () => {
-    scanStatus.textContent = nativeDetectorSupported() ? 'Scanner: native BarcodeDetector' : 'Scanner: ZXing';
+    if (!navigator.mediaDevices?.getUserMedia) {
+      hint.textContent = 'Camera unavailable — enter the number manually below.';
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
       video.srcObject = stream;
       await video.play();
-      stopScan = await startScan(video, ({ text }) => {
-        numInput.value = text;
-        toast(`Scanned: ${text}`);
-        stopScan?.();
-        stream.getTracks().forEach((t) => t.stop());
-        scanStatus.textContent = `Detected ${text}`;
-      }, (err) => { scanStatus.textContent = 'Scan error — enter number manually'; console.warn(err); });
-      scanStatus.textContent = 'Point the camera at the barcode…';
-      video.dataset.stop = '1';
-      video.addEventListener('pause', () => {}, { once: true });
+      stopScan = await startScan(video, onScan, (err) => {
+        hint.textContent = 'Scanner error — enter the number manually';
+        console.warn(err);
+      });
       video._stream = stream;
     } catch (e) {
-      scanStatus.textContent = 'Camera unavailable — enter the number manually.';
+      hint.textContent = 'Camera unavailable — enter the number manually below.';
       console.warn(e);
     }
   };
   const stopVideo = () => { video._stream?.getTracks().forEach((t) => t.stop()); stopScan?.(); };
 
-  const save = async () => {
-    const cardName = nameInput.value.trim();
-    const number = numInput.value.trim();
-    if (!cardName) return toast('Please enter a card name');
-    if (!number) return toast('Please enter or scan a card number');
-    await db.putCard({ id: uid(), name: cardName, color, ink, text, format, number, notes: '', photos: [], archived: false, favorite: false, sort: (await db.listCards()).length, createdAt: Date.now(), logo: preset?.id || null });
-    stopVideo();
-    state.view = { name: 'detail', justAdded: true, id: undefined };
-    // find the card we just saved
-    const all = await db.listCards();
-    state.view.id = all.find((c) => c.number === number && c.name === cardName)?.id;
-    render();
-  };
-
-  const form = el('div', { class: 'form' }, [
+  const manualForm = el('div', { class: 'form scan-form', style: 'display:none' }, [
     !preset ? el('div', { class: 'field' }, [el('label', {}, ['Name']), nameInput]) : null,
-    el('div', { class: 'field' }, [el('label', {}, ['Card number']), numInput,
-      el('button', { class: 'btn-secondary', onclick: startScanner }, ['📷 Scan barcode / QR'])]),
-    scanStatus, video,
+    el('div', { class: 'field' }, [el('label', {}, ['Card number']), numInput]),
     !preset ? el('div', { class: 'field' }, [el('label', {}, ['Color']), colorRow]) : null,
     el('div', { class: 'field' }, [el('label', {}, ['Barcode format']), formatSelect]),
-    el('button', { class: 'btn-primary', onclick: save }, ['Save card']),
+    el('button', { class: 'btn-primary', onclick: () => save({ name: nameInput.value, number: numInput.value, format, displayFormat }) }, ['Save card']),
   ]);
 
-  app.append(header, form);
+  const manualRow = el('button', {
+    class: 'scan-row', onclick: () => {
+      manualForm.style.display = manualForm.style.display === 'none' ? '' : 'none';
+      if (manualForm.style.display !== 'none') numInput.focus();
+    },
+  }, [el('span', { class: 'scan-row-ico' }, ['✏️']), el('span', { class: 'scan-row-label' }, ['Enter card number manually']), el('span', { class: 'chev' }, ['›'])]);
+
+  const uploadRow = el('button', {
+    class: 'scan-row', onclick: () => {
+      const input = el('input', { type: 'file', accept: 'image/*' });
+      input.onchange = async () => {
+        try {
+          hint.textContent = 'Reading image…';
+          const { text, format: rawFormat } = await decodeImageFile(input.files[0]);
+          onScan({ text, format: rawFormat, source: 'image' });
+        } catch (e) {
+          hint.textContent = 'No code found in that image — try the camera or manual entry.';
+          console.warn(e);
+        }
+      };
+      input.click();
+    },
+  }, [el('span', { class: 'scan-row-ico' }, ['🖼️']), el('span', { class: 'scan-row-label' }, ['Upload image of card']), el('span', { class: 'chev' }, ['›'])]);
+
+  app.append(header, viewfinder, hint,
+    el('div', { class: 'scan-actions' }, [manualRow, uploadRow]),
+    manualForm);
+
+  startScanner();
   window.addEventListener('pagehide', stopVideo, { once: true });
 }
 
