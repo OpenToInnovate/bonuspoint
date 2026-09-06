@@ -1,0 +1,22 @@
+{
+  "name": "bonus-point",
+  "version": "0.1.0",
+  "description": "Offline-first loyalty card wallet. No ads. No tracking.",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "type": "commonjs",
+  "devDependencies": {
+    "vite": "^8.2.2"
+  },
+  "dependencies": {
+    "@zxing/library": "^0.23.0",
+    "jsbarcode": "^3.12.3"
+  }
+}
