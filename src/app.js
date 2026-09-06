@@ -5,7 +5,7 @@ import { db } from './db.js';
 import { CATALOG, FORMATS, REGION_LABELS, identityOf } from './catalog.js';
 import { logoSrc, hasLogo } from './logos.js';
 import { regionMatches } from './region.js';
-import { renderBarcode, renderQR, displayMode, groupNumber } from './barcode.js';
+import { renderBarcode, renderQR, resetCanvas, displayMode, groupNumber } from './barcode.js';
 import { startScan, mapScanFormat, decodeImageFile } from './scanner.js';
 import { detectRegion, REGIONS } from './region.js';
 import './styles.css';
@@ -162,7 +162,7 @@ function listTile(c) {
     class: 'card-tile', style: `background:${c.color || '#52525b'}`, 'data-card-id': c.id,
     onclick: () => { if (suppressClick) return; state.view = { name: 'detail', id: c.id }; render(); },
   }, [
-    logoImg(c.logo, c.ink),
+    logoImg(c.logo, c.ink) || el('div', { class: 'tile-letter', style: `color:${c.text || '#fff'}` }, [(c.name || '?').trim().charAt(0).toUpperCase()]),
     el('div', { class: 'tile-name', style: `color:${c.text || '#fff'}` }, [c.name]),
     c.number ? el('div', { class: 'tile-num' }, [groupNumber(c.number)]) : null,
     el('span', {
@@ -275,6 +275,15 @@ async function renderDetail(id) {
 
   const ink = card.ink || '#ffffff';
   const faceColor = card.color || '#52525b';
+  // Backfill legacy cards saved before the logo field existed: if the card name
+  // matches a catalog preset, adopt its logo id permanently.
+  if (!card.logo) {
+    const preset = CATALOG.find((c) => c.name.toLowerCase() === (card.name || '').trim().toLowerCase());
+    if (preset && hasLogo(preset.id)) {
+      card.logo = preset.id;
+      db.putCard({ ...card, logo: preset.id });
+    }
+  }
   const header = el('div', { class: 'topbar detail-topbar' }, [
     el('button', { class: 'icon-btn back', 'aria-label': 'Back', onclick: () => { state.view = { name: 'list' }; render(); } }, ['←']),
     el('h1', {}, [card.name]),
@@ -282,7 +291,7 @@ async function renderDetail(id) {
 
   const face = el('div', { class: 'card-face detail-face' }, [
     el('div', { class: 'face-strip', style: `background:${faceColor}` }, [
-      el('span', { class: 'face-logo', style: `background:${faceColor}` }, [logoImg(card.logo, ink)]),
+      el('span', { class: 'face-logo', style: `background:${faceColor}` }, [logoImg(card.logo, ink) || letterFallback(card.name, ink)]),
       el('span', { class: 'face-title', style: `color:${card.text || '#fff'}` }, [card.name]),
       el('span', { class: 'face-pill' }, ['Details']),
     ]),
@@ -295,8 +304,11 @@ async function renderDetail(id) {
   const canvas = face.querySelector('canvas');
   const renderCode = async () => {
     const m = displayMode(card);
+    canvas.classList.toggle('qr', m === 'qr');
+    canvas.classList.toggle('barcode', m !== 'qr');
+    resetCanvas(canvas); // wipe previous render's attributes/inline styles
     const ok = m === 'qr'
-      ? await renderQR(canvas, card.number || '', { width: 520 })
+      ? await renderQR(canvas, card.number || '', { width: 320 })
       : renderBarcode(canvas, card.number || '', card.format || 'CODE128', { scale: 3 });
     canvas.style.display = ok ? '' : 'none';
     let msg = face.querySelector('.code-error');
@@ -390,6 +402,13 @@ function logoImg(id, ink = '#ffffff') {
   const src = logoSrc(id, ink);
   if (!src) return null;
   return el('img', { class: 'tile-logo', src, alt: '', draggable: 'false' });
+}
+
+/* Fallback when a card carries no preset logo: first letter of the brand name
+ * inside the already-colored .face-logo circle, tinted to the card's ink. */
+function letterFallback(name, ink = '#ffffff') {
+  const letter = (name || '?').trim().charAt(0).toUpperCase();
+  return el('span', { class: 'face-logo-letter', style: `color:${ink}` }, [letter]);
 }
 
 /* ---------------- Add card ---------------- */

@@ -26,9 +26,19 @@ export function renderBarcode(canvas, number, format = 'CODE128', opts = {}) {
   }
 }
 
-/** Render `number` as a QR code into `canvas`. Returns true on success. */
+/** Reset a canvas fully (attributes + inline styles) so a previous render's
+ *  dimensions never leak into the next (e.g. barcode -> QR toggle). */
+export function resetCanvas(canvas) {
+  canvas.removeAttribute('style');
+  canvas.width = 0;
+  canvas.height = 0;
+}
+
+/** Render `number` as a QR code into `canvas`. Returns true on success.
+ *  Default width 320 keeps the QR readable while fitting the card face; CSS
+ *  (`canvas.qr`) enforces a square box around whatever intrinsic size is used. */
 export async function renderQR(canvas, text, opts = {}) {
-  const width = opts.width || 260;
+  const width = opts.width || 320;
   try {
     await QRCode.toCanvas(canvas, text, {
       width,

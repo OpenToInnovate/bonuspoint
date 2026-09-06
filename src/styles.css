@@ -176,12 +176,23 @@ a { color: inherit; }
   background: rgba(255,255,255,.55); border-radius: 999px; padding: 5px 12px;
   backdrop-filter: blur(4px);
 }
-.card-face .face-body { padding: 22px 14px 16px; text-align: center; background: #fff; }
+.card-face .face-body { padding: 24px 14px 28px; text-align: center; background: #fff; }
+/* Codes render with explicit boxes so intrinsic canvas size never warps layout.
+ * QR: always a centered square, capped at ~320px / face width.
+ * Linear barcodes keep their wide strip; never stretched either. */
 .card-face canvas { max-width: 100%; height: auto; }
+.card-face canvas.qr {
+  display: block; margin: 0 auto;
+  width: min(320px, 100%); height: auto;
+  aspect-ratio: 1 / 1; /* hard squareness guarantee against stretching */
+}
+.card-face canvas.barcode { display: block; margin: 0 auto; width: 100%; }
+.face-logo-letter { font-size: 19px; font-weight: 800; line-height: 1; }
 .code-error { color: #a1a1aa; padding: 20px 0; font-size: 13px; }
 .card-number {
   font-size: 22px; font-weight: 700; letter-spacing: .08em;
   color: #18181b; margin-top: 10px;
+  overflow-wrap: anywhere; /* long numbers wrap instead of clipping */
 }
 .quick-actions { display: flex; gap: 10px; padding: 14px 16px 0; }
 .quick-actions button {
