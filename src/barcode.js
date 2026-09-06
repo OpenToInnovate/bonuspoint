@@ -4,15 +4,18 @@
 import JsBarcode from 'jsbarcode';
 import QRCode from 'qrcode';
 
-/** Render `number` as a barcode into `canvas`. Returns true on success. */
-export function renderBarcode(canvas, number, format = 'CODE128') {
+/** Render `number` as a barcode into `canvas`. Returns true on success.
+ *  `opts.scale` renders at an integer multiple (default 2) so the canvas stays
+ *  crisp on high-DPI screens and scanners read it easily. */
+export function renderBarcode(canvas, number, format = 'CODE128', opts = {}) {
+  const scale = Math.max(1, Math.min(4, opts.scale || 2));
   try {
     JsBarcode(canvas, number, {
       format,
-      width: 2,
-      height: 90,
+      width: 2 * scale,
+      height: (opts.height || 90) * scale / 2,
       displayValue: false,
-      margin: 8,
+      margin: 8 * scale,
       background: '#ffffff',
       lineColor: '#111111',
     });
@@ -24,10 +27,11 @@ export function renderBarcode(canvas, number, format = 'CODE128') {
 }
 
 /** Render `number` as a QR code into `canvas`. Returns true on success. */
-export async function renderQR(canvas, text) {
+export async function renderQR(canvas, text, opts = {}) {
+  const width = opts.width || 260;
   try {
     await QRCode.toCanvas(canvas, text, {
-      width: 260,
+      width,
       margin: 2,
       color: { dark: '#111111', light: '#ffffff' },
     });

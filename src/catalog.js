@@ -3,43 +3,53 @@
  * regions: array of 'GB' | 'US' | 'CA' | 'JP' | 'EU'.
  * European (non-UK) legacy entries stay in the 'EU' bucket — shown under
  * "All regions" and as auto-detected fallback for unmapped locales.
+ *
+ * Brand-exact visual identity:
+ *   color — official brand background (tile face / detail header strip)
+ *   ink   — logo colour (defaults #fff); used to tint the bundled SVG
+ *   text  — card-name colour on the tile (defaults #fff)
+ * Light-background brands (ASDA) carry a white face with brand-green ink.
+ * Hexes cross-checked against simple-icons 16.30 official brand data where
+ * available (Tesco 00539F, Boots 05054B-family navy, IKEA 0058A3, Lidl 0050AA,
+ * Argos DA291C, Starbucks 006241, Target CC0000, Rakuten BF0000, dm 002878,
+ * Rossmann C3002D, Carrefour 004E9F, H&M E50010, Aldi Nord 2490D7, …).
  */
 export const CATALOG = [
   // ---------- United Kingdom ----------
   { id: 'tesco', name: 'Tesco Clubcard', color: '#00539f', format: 'CODE128', regions: ['GB'] },
-  { id: 'sainsburys', name: "Sainsbury's Nectar", color: 'linear-gradient(90deg,#ff6a13,#f37021)', format: 'CODE128', regions: ['GB'] },
-  { id: 'nectar', name: 'Nectar', color: '#6e2585', format: 'CODE128', regions: ['GB'] },
-  { id: 'boots', name: 'Boots Advantage', color: '#0d3a97', format: 'CODE128', regions: ['GB'] },
-  { id: 'asda', name: 'ASDA Rewards', color: '#67b346', format: 'CODE128', regions: ['GB'] },
-  { id: 'morrisons', name: 'Morrisons More', color: '#f5a800', format: 'CODE128', regions: ['GB'] },
-  { id: 'waitrose', name: 'Waitrose & Partners', color: '#3f7a3f', format: 'CODE128', regions: ['GB'] },
+  { id: 'sainsburys', name: "Sainsbury's Nectar", color: '#ff6a13', format: 'CODE128', regions: ['GB'] },
+  { id: 'nectar', name: 'Nectar', color: '#7a26c9', format: 'CODE128', regions: ['GB'] },
+  { id: 'boots', name: 'Boots Advantage', color: '#0e1e45', format: 'CODE128', regions: ['GB'] },
+  { id: 'asda', name: 'ASDA Rewards', color: '#ffffff', ink: '#67b742', text: '#3b7a22', format: 'CODE128', regions: ['GB'] },
+  { id: 'morrisons', name: 'Morrisons More', color: '#004f40', format: 'CODE128', regions: ['GB'] },
+  { id: 'waitrose', name: 'Waitrose & Partners', color: '#37836e', format: 'CODE128', regions: ['GB'] },
   { id: 'lidl-gb', name: 'Lidl Plus', color: '#0050aa', format: 'CODE128', regions: ['GB'] },
   { id: 'costa', name: 'Costa Coffee Club', color: '#d5352c', format: 'CODE128', regions: ['GB'] },
-  { id: 'greggs', name: 'Greggs Rewards', color: '#005eb8', format: 'CODE128', regions: ['GB'] },
-  { id: 'ikea', name: 'IKEA Family', color: '#0058a3', format: 'CODE128', regions: ['GB', 'CA', 'EU'] },
+  { id: 'greggs', name: 'Greggs Rewards', color: '#004b93', format: 'CODE128', regions: ['GB'] },
+  { id: 'ikea', name: 'IKEA Family', color: '#0058a3', ink: '#ffdb00', format: 'CODE128', regions: ['GB', 'CA', 'EU'] },
   { id: 'superdrug', name: 'Superdrug', color: '#e4002b', format: 'CODE128', regions: ['GB'] },
   { id: 'holland-barrett', name: 'Holland & Barrett', color: '#00693e', format: 'CODE128', regions: ['GB'] },
-  { id: 'jd-sports', name: 'JD Sports', color: '#000000', format: 'CODE128', regions: ['GB'] },
-  { id: 'argos', name: 'Argos', color: '#d12732', format: 'CODE128', regions: ['GB'] },
-  { id: 'wagamama', name: 'Wagamama', color: '#000000', format: 'CODE128', regions: ['GB'] },
-  { id: 'nandos', name: "Nando's", color: '#1a1a1a', format: 'CODE128', regions: ['GB'] },
+  { id: 'jd-sports', name: 'JD Sports', color: '#000000', ink: '#fdda25', format: 'CODE128', regions: ['GB'] },
+  { id: 'argos', name: 'Argos', color: '#da291c', format: 'CODE128', regions: ['GB'] },
+  { id: 'wagamama', name: 'Wagamama', color: '#1a1a1a', format: 'CODE128', regions: ['GB'] },
+  { id: 'nandos', name: "Nando's", color: '#1a1a1a', ink: '#df2c2c', format: 'CODE128', regions: ['GB'] },
   { id: 'pret', name: 'Pret A Manger', color: '#8c1724', format: 'CODE128', regions: ['GB'] },
   { id: 'cafenero', name: 'Caffè Nero', color: '#231f20', format: 'CODE128', regions: ['GB'] },
-  { id: 'starbucks-uk', name: 'Starbucks UK', color: '#00704a', format: 'CODE128', regions: ['GB'] },
+  { id: 'starbucks-uk', name: 'Starbucks UK', color: '#006241', format: 'CODE128', regions: ['GB'] },
 
   // ---------- United States ----------
-  { id: 'starbucks', name: 'Starbucks', color: '#00704a', format: 'CODE128', regions: ['US', 'CA'] },
+  { id: 'starbucks', name: 'Starbucks', color: '#006241', format: 'CODE128', regions: ['US', 'CA'] },
   { id: 'cvs', name: 'CVS ExtraCare', color: '#cc0000', format: 'CODE128', regions: ['US'] },
   { id: 'walgreens', name: 'Walgreens Balance Rewards', color: '#e31837', format: 'CODE128', regions: ['US'] },
-  { id: 'kroger', name: 'Kroger', color: '#004f9f', format: 'EAN13', regions: ['US'] },
+  { id: 'kroger', name: 'Kroger', color: '#0b4ea2', format: 'EAN13', regions: ['US'] },
   { id: 'target', name: 'Target Circle', color: '#cc0000', format: 'CODE128', regions: ['US'] },
   { id: 'lowes', name: "Lowe's", color: '#004990', format: 'CODE128', regions: ['US'] },
   { id: 'panera', name: 'Panera', color: '#5d6b2e', format: 'CODE128', regions: ['US'] },
   { id: 'biglots', name: 'Big Lots', color: '#e4002b', format: 'CODE128', regions: ['US'] },
-  { id: 'samsclub', name: "Sam's Club", color: '#0088cf', format: 'CODE128', regions: ['US'] },
+  { id: 'samsclub', name: "Sam's Club", color: '#0067a0', format: 'CODE128', regions: ['US'] },
   { id: 'rei', name: 'REI Co-op', color: '#5c6f3f', format: 'CODE128', regions: ['US'] },
   { id: 'sephora', name: 'Sephora', color: '#000000', format: 'CODE128', regions: ['US', 'CA'] },
-  { id: 'bestbuy', name: 'Best Buy', color: '#003b64', format: 'CODE128', regions: ['US'] },
+  { id: 'bestbuy', name: 'Best Buy', color: '#0046be', ink: '#ffe000', format: 'CODE128', regions: ['US'] },
   { id: 'dunkin', name: "Dunkin'", color: '#ff671f', format: 'CODE128', regions: ['US'] },
   { id: 'dominos', name: "Domino's", color: '#006491', format: 'CODE128', regions: ['US'] },
   { id: 'traderjoes', name: 'Trader Joe’s', color: '#a02c2c', format: 'CODE128', regions: ['US'] },
@@ -49,7 +59,7 @@ export const CATALOG = [
   { id: 'canadiantire', name: 'Canadian Tire Triangle', color: '#d6001c', format: 'CODE128', regions: ['CA'] },
   { id: 'timhortons', name: 'Tim Hortons', color: '#c8102e', format: 'CODE128', regions: ['CA'] },
   { id: 'rexall', name: 'Rexall Be Well', color: '#e31837', format: 'CODE128', regions: ['CA'] },
-  { id: 'sobeys', name: 'Sobeys', color: '#ed1c24', format: 'CODE128', regions: ['CA'] },
+  { id: 'sobeys', name: 'Sobeys', color: '#f58025', format: 'CODE128', regions: ['CA'] },
   { id: 'safeway-ca', name: 'Safeway', color: '#0a6b3d', format: 'CODE128', regions: ['CA'] },
   { id: 'sportchek', name: 'Sport Chek', color: '#003da5', format: 'CODE128', regions: ['CA'] },
 
@@ -61,18 +71,18 @@ export const CATALOG = [
   { id: 'famipay', name: 'FamiPay (ファミペイ)', color: '#007c3e', format: 'CODE128', regions: ['JP'] },
   { id: 'lawson', name: 'Lawson Ponta (ローソン)', color: '#007bb7', format: 'CODE128', regions: ['JP'] },
   { id: 'nanaco', name: '7-Eleven nanaco (nanaco)', color: '#00a54f', format: 'CODE128', regions: ['JP'] },
-  { id: 'starbucks-jp', name: 'Starbucks Japan', color: '#00704a', format: 'CODE128', regions: ['JP'] },
+  { id: 'starbucks-jp', name: 'Starbucks Japan', color: '#006241', format: 'CODE128', regions: ['JP'] },
   { id: 'biccamera', name: 'Bic Camera (ビックカメラ)', color: '#f6a800', format: 'CODE128', regions: ['JP'] },
   { id: 'yodobashi', name: 'Yodobashi (ヨドバシ)', color: '#005eb8', format: 'CODE128', regions: ['JP'] },
   { id: 'muji', name: 'MUJI (無印良品)', color: '#7f0019', format: 'CODE128', regions: ['JP'] },
 
   // ---------- EU (legacy entries kept for existing users) ----------
   { id: 'rewe', name: 'REWE', color: '#cc071e', format: 'CODE128', regions: ['EU'] },
-  { id: 'aldi', name: 'Aldi', color: '#1c69d4', format: 'CODE128', regions: ['EU'] },
+  { id: 'aldi', name: 'Aldi', color: '#2490d7', format: 'CODE128', regions: ['EU'] },
   { id: 'lidl', name: 'Lidl', color: '#0050aa', format: 'CODE128', regions: ['EU'] },
-  { id: 'dm', name: 'dm', color: '#1a3c8f', format: 'CODE128', regions: ['EU'] },
+  { id: 'dm', name: 'dm', color: '#002878', format: 'CODE128', regions: ['EU'] },
   { id: 'metro', name: 'Metro', color: '#002d72', format: 'CODE128', regions: ['EU'] },
-  { id: 'rossmann', name: 'Rossmann', color: '#c8102e', format: 'CODE128', regions: ['EU'] },
+  { id: 'rossmann', name: 'Rossmann', color: '#c3002d', format: 'CODE128', regions: ['EU'] },
   { id: 'carrefour', name: 'Carrefour', color: '#004e9f', format: 'CODE128', regions: ['EU'] },
   { id: 'h&m', name: 'H&M', color: '#e50010', format: 'CODE128', regions: ['EU'] },
   { id: 'muller', name: 'Müller', color: '#e30613', format: 'CODE128', regions: ['EU'] },
@@ -88,3 +98,8 @@ export const FORMATS = ['CODE128', 'EAN13', 'EAN8', 'UPC', 'CODE39', 'ITF14'];
 
 /** Formats the camera scanner accepts (ZXing + native BarcodeDetector union). */
 export const SCAN_FORMATS = ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code', 'itf'];
+
+/** Identity defaults for cards without catalog fields (custom cards). */
+export function identityOf(entry) {
+  return { color: entry?.color || '#52525b', ink: entry?.ink || '#ffffff', text: entry?.text || '#ffffff' };
+}

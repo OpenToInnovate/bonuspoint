@@ -2,7 +2,8 @@
  * Bonus Point — app shell & views (vanilla JS, hash-less view switching).
  */
 import { db } from './db.js';
-import { CATALOG, FORMATS, REGION_LABELS } from './catalog.js';
+import { CATALOG, FORMATS, REGION_LABELS, identityOf } from './catalog.js';
+import { logoSrc, hasLogo } from './logos.js';
 import { regionMatches } from './region.js';
 import { renderBarcode, renderQR, displayMode, groupNumber } from './barcode.js';
 import { startScan, nativeDetectorSupported } from './scanner.js';
@@ -158,14 +159,14 @@ async function renderCardsList() {
 
 function listTile(c) {
   const tile = el('button', {
-    class: 'card-tile', style: `background:${c.color}`, 'data-card-id': c.id,
+    class: 'card-tile', style: `background:${c.color || '#52525b'}`, 'data-card-id': c.id,
     onclick: () => { if (suppressClick) return; state.view = { name: 'detail', id: c.id }; render(); },
   }, [
-    logoImg(c.logo),
-    el('div', { class: 'tile-name' }, [c.name]),
+    logoImg(c.logo, c.ink),
+    el('div', { class: 'tile-name', style: `color:${c.text || '#fff'}` }, [c.name]),
     c.number ? el('div', { class: 'tile-num' }, [groupNumber(c.number)]) : null,
     el('span', {
-      class: `tile-star${c.favorite ? ' on' : ''}`, 'aria-label': c.favorite ? 'Remove favorite' : 'Add favorite',
+      class: `tile-star${c.favorite ? ' on' : ''}`, style: `color:${c.text || '#fff'}`, 'aria-label': c.favorite ? 'Remove favorite' : 'Add favorite',
       onclick: async (e) => {
         e.stopPropagation();
         await db.putCard({ ...c, favorite: !c.favorite });
@@ -248,7 +249,20 @@ function enableDragReorder(root, orderedCards) {
 }
 
 
-/* ---------------- Card detail ---------------- */
+/* ---------------- Card detail (dark premium view) ---------------- */
+function manageRow({ icon, label, sub, danger, onclick }) {
+  return el('button', {
+    class: `manage-row${danger ? ' danger' : ''}`, onclick,
+  }, [
+    el('span', { class: 'manage-ico', 'aria-hidden': 'true' }, [icon]),
+    el('span', { class: 'manage-label' }, [
+      el('span', { class: 'manage-title' }, [label]),
+      sub ? el('span', { class: 'manage-sub' }, [sub]) : null,
+    ]),
+    el('span', { class: 'chev', 'aria-hidden': 'true' }, ['›']),
+  ]);
+}
+
 async function renderDetail(id) {
   const card = await db.getCard(id);
   if (!card) { state.view = { name: 'list' }; return render(); }
@@ -259,13 +273,19 @@ async function renderDetail(id) {
     await db.putCard(card);
   }
 
-  const header = el('div', { class: 'topbar' }, [
+  const ink = card.ink || '#ffffff';
+  const faceColor = card.color || '#52525b';
+  const header = el('div', { class: 'topbar detail-topbar' }, [
     el('button', { class: 'icon-btn back', 'aria-label': 'Back', onclick: () => { state.view = { name: 'list' }; render(); } }, ['←']),
-    el('h1', {}, ['Card']),
+    el('h1', {}, [card.name]),
   ]);
 
-  const face = el('div', { class: 'card-face fullscreen-bright' }, [
-    el('div', { class: 'face-header', style: `background:${card.color}` }, [card.name]),
+  const face = el('div', { class: 'card-face detail-face' }, [
+    el('div', { class: 'face-strip', style: `background:${faceColor}` }, [
+      el('span', { class: 'face-logo', style: `background:${faceColor}` }, [logoImg(card.logo, ink)]),
+      el('span', { class: 'face-title', style: `color:${card.text || '#fff'}` }, [card.name]),
+      el('span', { class: 'face-pill' }, ['Details']),
+    ]),
     el('div', { class: 'face-body' }, [
       el('canvas', { id: 'barcode-canvas' }),
       el('div', { class: 'card-number' }, [groupNumber(card.number || '—')]),
@@ -273,16 +293,15 @@ async function renderDetail(id) {
   ]);
 
   const canvas = face.querySelector('canvas');
-  const mode = displayMode(card);
   const renderCode = async () => {
     const m = displayMode(card);
     const ok = m === 'qr'
-      ? await renderQR(canvas, card.number || '')
-      : renderBarcode(canvas, card.number || '', card.format || 'CODE128');
+      ? await renderQR(canvas, card.number || '', { width: 520 })
+      : renderBarcode(canvas, card.number || '', card.format || 'CODE128', { scale: 3 });
     canvas.style.display = ok ? '' : 'none';
     let msg = face.querySelector('.code-error');
     if (!ok && !msg) {
-      msg = el('div', { class: 'code-error', style: 'color:#a1a1aa;padding:20px 0;font-size:13px' },
+      msg = el('div', { class: 'code-error' },
         ['Code could not be rendered for this number/format.']);
       canvas.after(msg);
     }
@@ -290,59 +309,72 @@ async function renderDetail(id) {
   };
   renderCode();
 
-  const container = el('div', {}, [header]);
+  const container = el('div', { class: 'detail-view' }, [header]);
   if (state.view.justAdded) {
     state.view.justAdded = false;
     container.append(el('div', { class: 'success-banner' }, ['✓ Successfully added your card!']));
   }
+  container.append(face);
 
-  const strip = el('div', { class: 'next-strip' });
+  // Quick actions: brightness, barcode/QR toggle, favorite.
+  container.append(el('div', { class: 'quick-actions' }, [
+    el('button', { onclick: async () => { face.requestFullscreen?.().catch(() => {}); face.classList.add('face-bright'); } }, ['🔆 Bright']),
+    el('button', {
+      onclick: async () => {
+        const next = displayMode(card) === 'qr' ? 'barcode' : 'qr';
+        await db.putCard({ ...card, displayFormat: next });
+        toast(next === 'qr' ? 'Showing QR code' : 'Showing barcode');
+        render();
+      },
+    }, [displayMode(card) === 'qr' ? '▭ Barcode' : '▣ QR']),
+    el('button', {
+      onclick: async () => {
+        await db.putCard({ ...card, favorite: !card.favorite });
+        toast(card.favorite ? 'Removed from favorites' : 'Added to favorites');
+        render();
+      },
+    }, [card.favorite ? '★ Favorited' : '☆ Favorite']),
+  ]));
+
+  const photos = Array.isArray(card.photos) ? card.photos : [];
+  const manage = el('div', { class: 'manage-section' }, [
+    el('div', { class: 'manage-head' }, ['Manage']),
+    manageRow({ icon: '✏️', label: 'Edit card', sub: 'Name, number & format', onclick: () => editCard(card) }),
+    manageRow({ icon: '📝', label: 'Notes', sub: card.notes ? card.notes.slice(0, 42) : 'Add a note', onclick: () => { state.view = { name: 'notes', id: card.id }; render(); } }),
+    manageRow({ icon: '🖼️', label: 'Photos', sub: photos.length ? `${photos.length} photo${photos.length === 1 ? '' : 's'}` : 'Add photos', onclick: () => { state.view = { name: 'photos', id: card.id }; render(); } }),
+    manageRow({
+      icon: '🗄️', label: 'Archive card', sub: 'Restore anytime from Settings',
+      onclick: async () => {
+        if (!confirm(`Archive "${card.name}"? You can restore it in Settings.`)) return;
+        await db.putCard({ ...card, archived: true });
+        toast('Card archived');
+        goList();
+      },
+    }),
+    manageRow({
+      icon: '🗑️', label: 'Delete card', danger: true,
+      onclick: async () => {
+        if (!confirm(`Permanently delete "${card.name}"?`)) return;
+        await db.deleteCard(card.id);
+        toast('Card deleted');
+        goList();
+      },
+    }),
+  ]);
+  container.append(manage);
+
   const others = (await db.listCards()).filter((c) => !c.archived && c.id !== card.id).slice(0, 6);
-  for (const c of others) {
-    strip.append(el('button', {
-      class: 'row-card small-tile', style: `background:${c.color};color:#fff`,
-      onclick: () => { state.view = { name: 'detail', id: c.id }; render(); },
-    }, [el('div', { style: 'font-weight:700;font-size:11px;text-align:center;word-break:break-word' }, [c.name])]));
+  if (others.length) {
+    const strip = el('div', { class: 'next-strip' });
+    for (const c of others) {
+      strip.append(el('button', {
+        class: 'row-card small-tile', style: `background:${c.color || '#52525b'}`,
+        onclick: () => { state.view = { name: 'detail', id: c.id }; render(); },
+      }, [el('div', { style: `font-weight:700;font-size:11px;text-align:center;word-break:break-word;color:${c.text || '#fff'}` }, [c.name])]));
+    }
+    container.append(el('div', { class: 'manage-head' }, ['Next card']), strip);
   }
 
-  container.append(
-    face,
-    el('div', { class: 'detail-actions' }, [
-      el('button', { onclick: () => editCard(card) }, ['✏️ Edit']),
-      el('button', { onclick: async () => { face.requestFullscreen?.().catch(() => {}); face.classList.add('face-bright'); } }, ['🔆 Bright']),
-      el('button', {
-        onclick: async () => {
-          const next = displayMode(card) === 'qr' ? 'barcode' : 'qr';
-          await db.putCard({ ...card, displayFormat: next });
-          toast(next === 'qr' ? 'Showing QR code' : 'Showing barcode');
-          render();
-        },
-      }, [displayMode(card) === 'qr' ? '▭ Switch to barcode' : '▣ Switch to QR']),
-      el('button', {
-        onclick: async () => {
-          await db.putCard({ ...card, favorite: !card.favorite });
-          toast(card.favorite ? 'Removed from favorites' : 'Added to favorites');
-          render();
-        },
-      }, [card.favorite ? '★ Unfavorite' : '☆ Favorite']),
-      el('button', {
-        onclick: async () => {
-          if (!confirm(`Archive "${card.name}"? You can restore it in Settings.`)) return;
-          await db.putCard({ ...card, archived: true });
-          toast('Card archived');
-          goList();
-        },
-      }, ['🗄 Archive']),
-      el('button', { class: 'danger', onclick: async () => { await db.deleteCard(card.id); toast('Card deleted'); goList(); } }, ['🗑 Delete']),
-    ]),
-    others.length ? el('div', { class: 'section-label' }, ['Next card']) : null,
-    strip,
-    el('button', { class: 'row-card', onclick: () => editCard(card) }, [
-      el('div', {}, [el('div', { class: 'row-title' }, ['NOTES']),
-        el('div', { class: 'row-value' }, [card.notes ? card.notes.slice(0, 40) : 'Add a note'])]),
-      el('span', { class: 'chev' }, ['›']),
-    ]),
-  );
   app.append(container);
 }
 
@@ -353,10 +385,11 @@ function editCard(card) {
 
 function goList() { state.tab = 'cards'; state.view = { name: 'list' }; render(); }
 
-/* Bundled brand logo (public/logos/<id>.svg, committed to the repo — never fetched at runtime). */
-function logoImg(id) {
-  if (!id) return null;
-  return el('img', { class: 'tile-logo', src: `logos/${id}.svg`, alt: '', draggable: 'false' });
+/* Bundled brand logo (imported at build time from src/assets/logos — never fetched at runtime). */
+function logoImg(id, ink = '#ffffff') {
+  const src = logoSrc(id, ink);
+  if (!src) return null;
+  return el('img', { class: 'tile-logo', src, alt: '', draggable: 'false' });
 }
 
 /* ---------------- Add card ---------------- */
@@ -380,8 +413,8 @@ async function renderAdd() {
         class: 'card-tile', style: `background:${item.color}`,
         onclick: () => { state.view = { name: 'number', catalogId: item.id }; render(); },
       }, [
-        logoImg(item.id),
-        el('div', { class: 'tile-name', style: 'text-align:center;font-size:12px' }, [item.name]),
+        logoImg(item.id, item.ink),
+        el('div', { class: 'tile-name', style: `text-align:center;font-size:12px;color:${item.text || '#fff'}` }, [item.name]),
       ]));
     }
     grid.append(el('button', {
@@ -403,7 +436,7 @@ async function renderAdd() {
 /* ---------------- Card number / scan ---------------- */
 function renderNumber({ catalogId }) {
   const preset = catalogId ? CATALOG.find((c) => c.id === catalogId) : null;
-  let color = preset?.color || '#52525b';
+  let { color, ink, text } = identityOf(preset);
   let name = preset?.name || '';
   let format = preset?.format || 'CODE128';
   let stopScan = null;
@@ -456,7 +489,7 @@ function renderNumber({ catalogId }) {
     const number = numInput.value.trim();
     if (!cardName) return toast('Please enter a card name');
     if (!number) return toast('Please enter or scan a card number');
-    await db.putCard({ id: uid(), name: cardName, color, format, number, notes: '', archived: false, favorite: false, sort: (await db.listCards()).length, createdAt: Date.now(), logo: preset?.id || null });
+    await db.putCard({ id: uid(), name: cardName, color, ink, text, format, number, notes: '', photos: [], archived: false, favorite: false, sort: (await db.listCards()).length, createdAt: Date.now(), logo: preset?.id || null });
     stopVideo();
     state.view = { name: 'detail', justAdded: true, id: undefined };
     // find the card we just saved
@@ -506,6 +539,99 @@ async function renderEdit(id) {
       },
     }, ['Save']),
   ]));
+}
+
+/* ---------------- Notes ---------------- */
+async function renderNotes(id) {
+  const card = await db.getCard(id);
+  if (!card) return goList();
+  const area = el('textarea', { rows: 6, placeholder: 'Notes (e.g. membership terms, expiry)' }, [card.notes || ''].filter(Boolean).join(''));
+  app.append(
+    el('div', { class: 'topbar' }, [
+      el('button', { class: 'icon-btn back', 'aria-label': 'Back', onclick: () => { state.view = { name: 'detail', id }; render(); } }, ['←']),
+      el('h1', {}, ['Notes']),
+    ]),
+    el('div', { class: 'form' }, [
+      el('div', { class: 'field' }, [area]),
+      el('button', {
+        class: 'btn-primary',
+        onclick: async () => {
+          await db.putCard({ ...card, notes: area.value });
+          toast('Notes saved');
+          state.view = { name: 'detail', id };
+          render();
+        },
+      }, ['Save notes']),
+    ]),
+  );
+}
+
+/* ---------------- Photos ---------------- */
+async function shrinkImage(file) {
+  const bmp = await createImageBitmap(file);
+  const max = 1024;
+  const scale = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(bmp.width * scale);
+  c.height = Math.round(bmp.height * scale);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.82);
+}
+
+async function renderPhotos(id) {
+  const card = await db.getCard(id);
+  if (!card) return goList();
+  const photos = Array.isArray(card.photos) ? card.photos : [];
+
+  const grid = el('div', { class: 'photo-grid' });
+  const fill = () => {
+    grid.innerHTML = '';
+    if (!photos.length) {
+      grid.append(el('div', { class: 'empty-state', style: 'grid-column:1/-1' }, [
+        el('div', { class: 'big-ico' }, ['🖼️']),
+        el('div', { class: 'caption' }, ['No photos yet']),
+      ]));
+    }
+    photos.forEach((src, i) => {
+      grid.append(el('div', { class: 'photo-cell' }, [
+        el('img', { src, alt: `Photo ${i + 1}` }),
+        el('button', {
+          class: 'photo-del', 'aria-label': 'Delete photo',
+          onclick: async () => {
+            photos.splice(i, 1);
+            await db.putCard({ ...card, photos });
+            fill();
+          },
+        }, ['✕']),
+      ]));
+    });
+  };
+  fill();
+
+  const addBtn = el('button', {
+    class: 'btn-primary',
+    onclick: () => {
+      const input = el('input', { type: 'file', accept: 'image/*', multiple: true });
+      input.onchange = async () => {
+        try {
+          for (const f of input.files) photos.push(await shrinkImage(f));
+          await db.putCard({ ...card, photos });
+          toast(`Added ${input.files.length} photo${input.files.length === 1 ? '' : 's'}`);
+          fill();
+        } catch (e) { toast('Could not add photo'); console.warn(e); }
+      };
+      input.click();
+    },
+  }, ['📷 Add photo']);
+
+  app.append(
+    el('div', { class: 'topbar' }, [
+      el('button', { class: 'icon-btn back', 'aria-label': 'Back', onclick: () => { state.view = { name: 'detail', id }; render(); } }, ['←']),
+      el('h1', {}, ['Photos']),
+    ]),
+    grid,
+    el('div', { class: 'form' }, [addBtn]),
+  );
 }
 
 /* ---------------- Archived cards ---------------- */
@@ -638,6 +764,8 @@ function render() {
     add: () => renderAdd(),
     number: () => renderNumber(v),
     edit: () => renderEdit(v.id),
+    notes: () => renderNotes(v.id),
+    photos: () => renderPhotos(v.id),
     archived: () => renderArchived(),
     offers: () => renderOffers(),
     settings: () => renderSettings(),

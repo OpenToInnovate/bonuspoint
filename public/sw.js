@@ -1,5 +1,5 @@
 /* Bonus Point service worker — offline-first, cache-first with versioned precache. */
-const CACHE = 'bonuspoint-v1';
+const CACHE = 'bonuspoint-v2';
 const PRECACHE = ['/', '/index.html', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
