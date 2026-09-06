@@ -310,17 +310,66 @@ body.dark .card-tile { box-shadow: 0 1px 3px rgba(0,0,0,.4), inset 0 0 0 1px rgb
 body.dark .card-tile.add-tile { background: #2e2e33; color: #a1a1aa; }
 
 /* ---------- Touch targets, focus, input polish ---------- */
-button { touch-action: manipulation; }
+button { touch-action: manipulation; min-height: 44px; }
 button:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 .field input:focus, .field textarea:focus, .field select:focus { outline: none; border-color: var(--red); }
 .icon-btn { padding: 10px; }
-.color-dot { width: 40px; height: 40px; }
-.photo-del { width: 30px; height: 30px; font-size: 13px; line-height: 30px; }
+.color-dot { width: 44px; height: 44px; }
+.photo-del { width: 44px; height: 44px; font-size: 14px; line-height: 44px; top: 0; right: 0; border-radius: 0 12px 0 0; background: rgba(0,0,0,.65); }
 .quick-actions button { padding: 13px 6px; }
-.card-tile .tile-star { top: 2px; right: 4px; padding: 6px; }
+.card-tile .tile-star { top: 0; right: 0; padding: 13px; font-size: 18px; }
 
 /* Long card numbers shrink to stay scannable/wrappable */
 .card-number.long { font-size: 16px; letter-spacing: .05em; }
+
+/* ---------- Multi-select mode ---------- */
+.select-header { gap: 6px; }
+.select-header .select-title { font-size: 17px; text-align: center; }
+.bulk-btn {
+  background: var(--red); color: #fff; border-radius: 999px;
+  padding: 11px 14px; font-size: 13px; font-weight: 700; min-height: 44px;
+  white-space: nowrap;
+}
+.bulk-btn:disabled { background: #d4d4d8; color: #a1a1aa; }
+.bulk-btn:not(:disabled):active { background: var(--red-dark); }
+.bulk-btn.danger:not(:disabled) { background: #b91c1c; }
+.card-tile.selecting { cursor: pointer; }
+.card-tile.selected { outline: 3px solid #fff; box-shadow: 0 0 0 6px rgba(225,29,72,.55); }
+.select-check {
+  position: absolute; top: 6px; left: 6px; width: 28px; height: 28px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,.9); background: rgba(0,0,0,.25);
+  color: #fff; font-size: 16px; font-weight: 800; line-height: 24px; text-align: center;
+}
+.card-tile.selected .select-check { background: var(--red); border-color: #fff; }
+
+/* ---------- Scan confirmation (never silent auto-save) ---------- */
+.scan-confirm { padding: 10px 16px 0; }
+.scan-confirm-box {
+  background: #fff; border-radius: 16px; padding: 18px 16px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.12); text-align: center;
+}
+.scan-confirm-label { font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.scan-confirm-value {
+  font-size: 20px; font-weight: 700; letter-spacing: .06em; margin: 8px 0 2px;
+  overflow-wrap: anywhere;
+}
+.scan-confirm-meta, .scan-confirm-name { font-size: 13px; color: var(--muted); margin: 2px 0; }
+.scan-confirm-actions { display: flex; gap: 10px; margin-top: 14px; }
+.scan-confirm-actions .btn-primary { margin-top: 0; flex: 1.4; }
+.btn-secondary {
+  flex: 1; background: #f4f4f5; color: var(--text); border-radius: 12px;
+  padding: 14px; font-weight: 700; font-size: 16px; margin-top: 8px;
+}
+.btn-secondary:active { background: #e4e4e7; }
+
+/* ---------- Duplicate groups ---------- */
+.dupe-group {
+  background: #fff; margin: 10px 16px 0; border-radius: 12px; padding: 14px 16px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.06);
+}
+.dupe-group .btn-primary { margin-top: 12px; }
+.dupe-head { font-weight: 800; font-size: 15px; margin-bottom: 8px; }
+.dupe-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid #f0f0f2; }
 
 /* ---------- SW update prompt ---------- */
 .sw-update {

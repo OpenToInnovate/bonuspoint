@@ -49,6 +49,31 @@ export const db = {
   getSetting: (key) => tx('settings', 'readonly', (s) => s.get(key)),
   putSetting: (key, value) => tx('settings', 'readwrite', (s) => s.put(value, key)),
 
+  /** First active (non-archived) card with the same brand + number, or null.
+   * brand matches by catalog logo id when known, else exact name (case-insensitive). */
+  async findActiveDuplicate({ name, number, logo = null }) {
+    const num = String(number || '').trim().toLowerCase();
+    if (!num) return null;
+    const nm = String(name || '').trim().toLowerCase();
+    const cards = await this.listCards();
+    const nameEq = (n) => String(n || '').trim().toLowerCase() === nm;
+    return cards.find((c) => !c.archived
+      && String(c.number || '').trim().toLowerCase() === num
+      && (logo ? c.logo === logo || nameEq(c.name) : nameEq(c.name))) || null;
+  },
+
+  /** Groups of 2+ active cards sharing brand + number (surfaced, never auto-deleted). */
+  async duplicateGroups() {
+    const cards = (await this.listCards()).filter((c) => !c.archived);
+    const byKey = new Map();
+    for (const c of cards) {
+      const key = `${String(c.logo || (c.name || '').trim().toLowerCase())}|${String(c.number || '').trim().toLowerCase()}`;
+      if (!byKey.has(key)) byKey.set(key, []);
+      byKey.get(key).push(c);
+    }
+    return [...byKey.values()].filter((g) => g.length > 1);
+  },
+
   async export() {
     const cards = await this.listCards();
     return JSON.stringify({ app: 'bonuspoint', version: 1, exportedAt: new Date().toISOString(), cards }, null, 2);

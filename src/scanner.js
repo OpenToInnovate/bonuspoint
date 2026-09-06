@@ -76,12 +76,21 @@ export async function startScan(video, onResult, onError = console.warn) {
   }
 
   const reader = new BrowserMultiFormatReader();
+  let lastText = null, lastAt = 0, fired = false;
   reader.decodeFromVideoDevice(null, video, (result, err) => {
+    if (fired) return; // latch: at most one onResult per startScan call
     if (result) {
-      onResult({ text: result.getText(), format: result.getBarcodeFormat()?.toString?.() ?? String(result.getBarcodeFormat()), source: 'zxing' });
-    } else if (err && !(err.name === 'NotFoundException')) {
-      onError(err);
+      const text = result.getText();
+      const now = Date.now();
+      // Cooldown: ignore an identical decode within 3s (detector jitter).
+      if (text === lastText && now - lastAt < 3000) return;
+      lastText = text; lastAt = now;
+      fired = true;
+      try { controls?.stop?.(); } catch (_) {} // stop the detection loop immediately
+      onResult({ text, format: result.getBarcodeFormat()?.toString?.() ?? String(result.getBarcodeFormat()), source: 'zxing' });
+      return;
     }
+    if (err && !(err.name === 'NotFoundException')) onError(err);
   }).then((controls) => { stop = () => controls.stop(); });
   // Note: assignment above runs async; wrap to ensure latest stop is used.
   return () => { try { stop(); } catch (_) {} };

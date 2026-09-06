@@ -110,11 +110,37 @@ function sortCards(cards, mode) {
 async function renderCardsList() {
   const all = (await db.listCards()).filter((c) => !c.archived);
 
-  const header = el('div', { class: 'topbar list-header' }, [
-    el('span', { class: 'icon-btn back', 'aria-hidden': 'true' }, ['←']),
-    el('h1', { class: 'centered-title' }, ['Loyalty Cards']),
-    el('button', { class: 'icon-btn', 'aria-label': 'Add card', onclick: () => navigate({ name: 'add' }) }, ['+']),
-  ]);
+  /* Multi-select mode: bulk delete/archive for duplicate floods (100+ cards OK).
+   * selection updates mutate classes in place — no full re-render per tap. */
+  const exitSelect = () => { selectMode = false; selectedIds = new Set(); render(); };
+  const header = selectMode
+    ? el('div', { class: 'topbar list-header select-header', 'data-testid': 'select-bar' }, [
+        el('button', { class: 'icon-btn', 'aria-label': 'Cancel selection', onclick: exitSelect }, ['✕']),
+        el('h1', { class: 'centered-title select-title' }, ['Select cards']),
+        el('button', { class: 'bulk-btn', 'data-bulk': 'archive', disabled: true, onclick: async () => {
+          if (!selectedIds.size) return;
+          if (!confirm(`Archive ${selectedIds.size} card(s)? You can restore them in Settings.`)) return;
+          for (const id of selectedIds) {
+            const c = await db.getCard(id);
+            if (c) await db.putCard({ ...c, archived: true });
+          }
+          toast(`Archived ${selectedIds.size} card(s)`);
+          exitSelect();
+        } }, ['🗄 Archive (0)']),
+        el('button', { class: 'bulk-btn danger', 'data-bulk': 'delete', disabled: true, onclick: async () => {
+          if (!selectedIds.size) return;
+          if (!confirm(`Permanently delete ${selectedIds.size} card(s)? This cannot be undone.`)) return;
+          for (const id of selectedIds) await db.deleteCard(id);
+          toast(`Deleted ${selectedIds.size} card(s)`);
+          exitSelect();
+        } }, ['🗑 Delete (0)']),
+      ])
+    : el('div', { class: 'topbar list-header' }, [
+        el('span', { class: 'icon-btn back', 'aria-hidden': 'true' }, ['←']),
+        el('h1', { class: 'centered-title' }, ['Loyalty Cards']),
+        el('button', { class: 'icon-btn select-btn', 'aria-label': 'Select cards', title: 'Select cards', onclick: () => { selectMode = true; selectedIds = new Set(); render(); } }, ['☑']),
+        el('button', { class: 'icon-btn', 'aria-label': 'Add card', onclick: () => navigate({ name: 'add' }) }, ['+']),
+      ]);
 
   const search = el('input', {
     class: 'search-bar', type: 'search', placeholder: 'Search cards', 'aria-label': 'Search cards',
@@ -149,7 +175,7 @@ async function renderCardsList() {
   const updateGrid = () => {
     const q = searchQuery.trim().toLowerCase();
     const visible = q ? all.filter((c) => c.name.toLowerCase().includes(q)) : all;
-    countLabel.textContent = `${visible.length} loyalty card${visible.length === 1 ? '' : 's'}`;
+    countLabel.textContent = selectMode ? `${selectedIds.size} selected` : `${visible.length} loyalty card${visible.length === 1 ? '' : 's'}`;
     grid.innerHTML = '';
     for (const c of sortCards(visible, currentSort)) grid.append(listTile(c));
     if (!visible.length) {
@@ -157,12 +183,16 @@ async function renderCardsList() {
         el('div', { class: 'caption', style: 'padding:24px 0' }, ['No cards match your search']),
       ]));
     }
-    grid.append(el('button', {
+    if (!selectMode) grid.append(el('button', {
       class: 'card-tile add-tile', 'aria-label': 'Add card',
       onclick: () => navigate({ name: 'add' }),
     }, [el('span', { class: 'add-plus' }, ['+'])]));
   };
   updateGrid();
+
+  if (selectMode) {
+    search.remove(); chipsWrap.remove();
+  }
 
   function cycleSort() {
     const idx = SORTS.findIndex((s) => s.id === currentSort);
@@ -185,15 +215,40 @@ async function renderCardsList() {
     app.append(frag);
     return;
   }
-  enableDragReorder(grid, sortCards(all, 'custom'));
+  if (!selectMode) enableDragReorder(grid, sortCards(all, 'custom'));
   app.append(frag);
+}
+
+/* Multi-select state lives outside render — the select bar reads it live. */
+let selectMode = false;
+let selectedIds = new Set();
+function refreshActionBar() {
+  const n = selectedIds.size;
+  const del = document.querySelector('[data-bulk=delete]');
+  const arc = document.querySelector('[data-bulk=archive]');
+  if (del) { del.textContent = `🗑 Delete (${n})`; del.disabled = !n; }
+  if (arc) { arc.textContent = `🗄 Archive (${n})`; arc.disabled = !n; }
 }
 
 function listTile(c) {
   const tile = el('button', {
-    class: 'card-tile', style: `background:${c.color || '#52525b'}`, 'data-card-id': c.id,
-    onclick: () => { if (suppressClick) return; state.view = { name: 'detail', id: c.id }; render(); },
+    class: `card-tile${selectMode ? ' selecting' : ''}${selectedIds.has(c.id) ? ' selected' : ''}`,
+    style: `background:${c.color || '#52525b'}`, 'data-card-id': c.id,
+    onclick: () => {
+      if (suppressClick) return;
+      if (selectMode) {
+        // Toggle selection in place — no re-render, stays smooth at 100+ cards.
+        if (selectedIds.has(c.id)) { selectedIds.delete(c.id); tile.classList.remove('selected'); }
+        else { selectedIds.add(c.id); tile.classList.add('selected'); }
+        const label = document.querySelector('.count-label');
+        if (label) label.textContent = `${selectedIds.size} selected`;
+        refreshActionBar();
+        return;
+      }
+      state.view = { name: 'detail', id: c.id }; render();
+    },
   }, [
+    selectMode ? el('span', { class: 'select-check', 'aria-hidden': 'true' }, [selectedIds.has(c.id) ? '✓' : '']) : null,
     logoImg(c.logo, c.ink) || el('div', { class: 'tile-letter', style: `color:${c.text || '#fff'}` }, [firstChar(c.name)]),
     el('div', { class: 'tile-name', style: `color:${c.text || '#fff'}` }, [c.name]),
     c.number ? el('div', { class: 'tile-num' }, [groupNumber(c.number)]) : null,
@@ -201,6 +256,7 @@ function listTile(c) {
       class: `tile-star${c.favorite ? ' on' : ''}`, style: `color:${c.text || '#fff'}`, 'aria-label': c.favorite ? 'Remove favorite' : 'Add favorite',
       onclick: async (e) => {
         e.stopPropagation();
+        if (selectMode) return;
         await db.putCard({ ...c, favorite: !c.favorite });
         render();
       },
@@ -515,31 +571,81 @@ function renderNumber({ catalogId }) {
     FORMATS.map((f) => el('option', { value: f, selected: f === format ? '' : null }, [f])));
 
   const save = async ({ name, number, format: fmt, displayFormat: disp }) => {
-    const cardName = (name || '').trim();
-    const cardNumber = (number || '').trim();
-    if (!cardName) return toast('Please enter a card name');
-    if (!cardNumber) return toast('Please enter or scan a card number');
-    const card = {
-      id: uid(), name: cardName, color, ink, text, format: fmt, number: cardNumber,
-      notes: '', photos: [], archived: false, favorite: false,
-      sort: (await db.listCards()).length, createdAt: Date.now(), logo: preset?.id || null,
-    };
-    if (disp) card.displayFormat = disp; // scanned pattern wins
-    await db.putCard(card);
-    stopVideo();
-    activeCleanup = null;
-    navigate({ name: 'detail', justAdded: true, id: card.id }, { replace: true });
+    if (saving) return; // double-tap guard: never insert twice
+    saving = true;
+    try {
+      const cardName = (name || '').trim();
+      const cardNumber = (number || '').trim();
+      if (!cardName) { toast('Please enter a card name'); return; }
+      if (!cardNumber) { toast('Please enter or scan a card number'); return; }
+      // Duplicate guard: never silently stack a card that already exists.
+      const dupe = await db.findActiveDuplicate({ name: cardName, number: cardNumber, logo: preset?.id || null });
+      if (dupe && !confirm(`You already have this card — "${dupe.name}" with the same number.\n\nAdd anyway?`)) return;
+      const card = {
+        id: uid(), name: cardName, color, ink, text, format: fmt, number: cardNumber,
+        notes: '', photos: [], archived: false, favorite: false,
+        sort: (await db.listCards()).length, createdAt: Date.now(), logo: preset?.id || null,
+      };
+      if (disp) card.displayFormat = disp; // scanned pattern wins
+      await db.putCard(card);
+      stopVideo();
+      activeCleanup = null;
+      navigate({ name: 'detail', justAdded: true, id: card.id }, { replace: true });
+    } finally {
+      saving = false;
+    }
+  };
+
+  /* Scan confirmation: a decode NEVER saves by itself. First decode wins the
+   * latch (identical decodes within 3s are ignored), the camera stops, and the
+   * user explicitly confirms with Save / Rescan. */
+  let scanned = null; // latched decode
+  const confirmWrap = el('div', { class: 'scan-confirm', style: 'display:none', 'data-testid': 'scan-confirm' });
+  const renderConfirm = () => {
+    confirmWrap.innerHTML = '';
+    if (!scanned) return;
+    const mapped = mapScanFormat(scanned.format);
+    confirmWrap.append(
+      el('div', { class: 'scan-confirm-box' }, [
+        el('div', { class: 'scan-confirm-label' }, ['Code detected']),
+        el('div', { class: 'scan-confirm-value', 'data-testid': 'scan-value' }, [scanned.text]),
+        el('div', { class: 'scan-confirm-meta' }, [`Format: ${mapped.displayFormat === 'qr' ? 'QR code' : mapped.format}`]),
+        el('div', { class: 'scan-confirm-name' }, [`Saving as: ${(preset?.name || nameInput.value.trim() || 'Custom card')}`]),
+        el('div', { class: 'scan-confirm-actions' }, [
+          el('button', {
+            class: 'btn-primary', 'data-testid': 'scan-save',
+            onclick: () => save({
+              name: preset?.name || nameInput.value.trim() || 'Custom card',
+              number: scanned.text,
+              format: mapped.format,
+              displayFormat: mapped.displayFormat,
+            }),
+          }, ['Save card']),
+          el('button', {
+            class: 'btn-secondary', 'data-testid': 'scan-rescan',
+            onclick: () => { scanned = null; confirmWrap.style.display = 'none'; hint.textContent = 'Point the camera at the barcode or QR code'; startScanner(); },
+          }, ['Rescan']),
+        ]),
+      ])
+    );
   };
 
   const onScan = ({ text, format: rawFormat }) => {
-    const mapped = mapScanFormat(rawFormat);
-    save({
-      name: preset?.name || nameInput.value.trim() || 'Custom card',
-      number: text,
-      format: mapped.format,
-      displayFormat: mapped.displayFormat,
-    });
+    if (scanned || saving) return; // latch: at most once per physical scan
+    const now = Date.now();
+    if (text === lastDecode.text && now - lastDecode.at < 3000) return; // identical-decode cooldown
+    lastDecode = { text, at: now };
+    scanned = { text, format: rawFormat };
+    stopVideo(); // stop the detection loop immediately
+    renderConfirm();
+    confirmWrap.style.display = '';
+    hint.textContent = 'Check the code, then save or rescan';
   };
+  let lastDecode = { text: null, at: 0 };
+  let saving = false;
+  // Test/automation seam: decodes arrive here exactly as the scanner emits them.
+  const scanEventHandler = (e) => onScan(e.detail || {});
+  window.addEventListener('bp-scan', scanEventHandler);
 
   const startScanner = async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -560,11 +666,11 @@ function renderNumber({ catalogId }) {
       console.warn(e);
     }
   };
-  const stopVideo = () => { video._stream?.getTracks().forEach((t) => t.stop()); stopScan?.(); };
+  const stopVideo = () => { video._stream?.getTracks().forEach((t) => t.stop()); stopScan?.(); window.removeEventListener('bp-scan', scanEventHandler); };
 
   const manualForm = el('form', {
     class: 'form scan-form', style: 'display:none',
-    onsubmit: (e) => { e.preventDefault(); save({ name: nameInput.value, number: numInput.value, format, displayFormat }); },
+    onsubmit: (e) => { e.preventDefault(); save({ name: nameInput.value, number: numInput.value, format, displayFormat }); numInput.value = ''; },
   }, [
     !preset ? el('div', { class: 'field' }, [el('label', {}, ['Name']), nameInput]) : null,
     el('div', { class: 'field' }, [el('label', {}, ['Card number']), numInput]),
@@ -597,7 +703,7 @@ function renderNumber({ catalogId }) {
     },
   }, [el('span', { class: 'scan-row-ico' }, ['🖼️']), el('span', { class: 'scan-row-label' }, ['Upload image of card']), el('span', { class: 'chev' }, ['›'])]);
 
-  app.append(header, viewfinder, hint,
+  app.append(header, viewfinder, hint, confirmWrap,
     el('div', { class: 'scan-actions' }, [manualRow, uploadRow]),
     manualForm);
 
@@ -767,6 +873,51 @@ async function renderArchived() {
   }
 }
 
+/* ---------------- Duplicate cards (surface only — never auto-delete) ---------------- */
+async function renderDuplicates() {
+  const groups = await db.duplicateGroups();
+  app.append(
+    el('div', { class: 'topbar' }, [
+      el('button', { class: 'icon-btn back', 'aria-label': 'Back', onclick: goSettings }, ['←']),
+      el('h1', {}, ['Duplicate cards']),
+    ]),
+  );
+  if (!groups.length) {
+    app.append(el('div', { class: 'empty-state' }, [
+      el('div', { class: 'big-ico' }, ['✨']),
+      el('div', { class: 'caption' }, ['No duplicate cards found']),
+    ]));
+    return;
+  }
+  app.append(el('div', { class: 'caption', style: 'padding:4px 24px 0' },
+    ['These cards share the same brand and number. Keep one, delete the rest — nothing is removed without your confirmation.']));
+  for (const group of groups) {
+    const wrap = el('div', { class: 'dupe-group' }, [
+      el('div', { class: 'dupe-head' }, [`${group.length}× ${group[0].name}`]),
+    ]);
+    group.forEach((c, i) => {
+      wrap.append(el('div', { class: 'dupe-row' }, [
+        el('span', { class: 'arch-dot', style: `background:${c.color}` }),
+        el('div', { class: 'row-value' }, [
+          el('div', { class: 'row-title' }, [i === 0 ? 'Keep (oldest)' : `Duplicate · ${new Date(c.createdAt || Date.now()).toLocaleDateString()}`]),
+          el('div', { style: 'font-size:12px;color:var(--muted)' }, [c.number || '']),
+        ]),
+      ]));
+    });
+    wrap.append(el('button', {
+      class: 'btn-primary', 'data-testid': 'dupe-fix',
+      onclick: async () => {
+        const extras = group.slice(1);
+        if (!confirm(`Keep one "${group[0].name}" and permanently delete the other ${extras.length}? This cannot be undone.`)) return;
+        for (const c of extras) await db.deleteCard(c.id);
+        toast(`Deleted ${extras.length} duplicate(s)`);
+        render();
+      },
+    }, [`Keep 1, delete ${group.length - 1} duplicates`]));
+    app.append(wrap);
+  }
+}
+
 function goSettings() { state.tab = 'settings'; state.view = { name: 'settings' }; render(); }
 
 /* ---------------- Offers placeholder ---------------- */
@@ -829,6 +980,14 @@ async function renderSettings() {
       },
     }, [`🌙 Dark theme: ${document.body.classList.contains('dark') ? 'On' : 'Off'}`]),
     el('button', {
+      'data-testid': 'duplicates-row',
+      onclick: async () => {
+        const groups = await db.duplicateGroups();
+        if (!groups.length) { toast('No duplicate cards found'); return; }
+        state.view = { name: 'duplicates' }; render();
+      },
+    }, [`👯 Duplicate cards`]),
+    el('button', {
       onclick: () => { state.view = { name: 'archived' }; render(); },
     }, ['🗄 Archived cards']),
     el('button', {
@@ -861,6 +1020,7 @@ function render() {
     notes: () => renderNotes(v.id),
     photos: () => renderPhotos(v.id),
     archived: () => renderArchived(),
+    duplicates: () => renderDuplicates(),
     offers: () => renderOffers(),
     settings: () => renderSettings(),
   };

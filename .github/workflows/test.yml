@@ -1,0 +1,28 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Unit tests (db, scanner mapping, catalog)
+        run: npm run test:unit
+      - name: Logo / UI asset audit
+        run: npm run test:logos
+      - name: UX lint (touch targets, overflow, manifest/SW paths)
+        run: npm run test:ux
+      - name: Build + jsdom integration suite
+        run: npm run test:smoke

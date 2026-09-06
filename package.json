@@ -6,7 +6,12 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "test": "npm run test:unit && npm run test:logos && npm run test:ux && npm run test:smoke",
+    "test:unit": "vitest run",
+    "test:logos": "node scripts/audit-logos.mjs",
+    "test:ux": "node scripts/ux-lint.mjs",
+    "test:smoke": "npm run build -- --base=/bonuspoint/ && node scripts/smoke.mjs"
   },
   "keywords": [],
   "author": "OpenToInnovate",
@@ -15,7 +20,8 @@
   "devDependencies": {
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^30.0.1",
-    "vite": "^8.2.2"
+    "vite": "^8.2.2",
+    "vitest": "^5.0.0"
   },
   "dependencies": {
     "@zxing/library": "^0.23.0",

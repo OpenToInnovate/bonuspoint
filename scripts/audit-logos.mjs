@@ -9,14 +9,26 @@ const catalogSrc = readFileSync(join(root, 'src', 'catalog.js'), 'utf8');
 const ids = [...catalogSrc.matchAll(/^\s*\{\s*id:\s*'([^']+)'/gm)].map((m) => m[1]);
 
 let fail = 0;
+const { DOMParser } = await import('jsdom').then((m) => m.JSDOM ? m : m).catch(() => ({}));
+let parser = null;
+try { ({ DOMParser } = await import('jsdom').then((m) => ({ DOMParser: new m.JSDOM().window.DOMParser }))); } catch { /* jsdom missing: skip XML validation */ }
 for (const id of ids) {
   const p = join(root, 'src', 'assets', 'logos', `${id}.svg`);
-  if (!existsSync(p)) { console.error(`MISSING  ${id}`); fail++; continue; }
+  if (!existsSync(p)) { console.error(`MISSING  ${id} (generic letter tile would show)`); fail++; continue; }
   const svg = readFileSync(p, 'utf8');
   const hasGlyph = /<path\s/.test(svg) || /<text\s/.test(svg);
   const tintable = /fill="#ffffff"/i.test(svg);
   if (!hasGlyph) { console.error(`EMPTY    ${id} (no path/text)`); fail++; continue; }
   if (!tintable) { console.error(`NOTINT   ${id} (no fill="#ffffff" to tint)`); fail++; continue; }
+  // Valid XML + viewBox (needed for clean scaling at every tile size).
+  if (parser) {
+    const doc = parser.parseFromString(svg, 'image/svg+xml');
+    if (doc.querySelector('parsererror')) { console.error(`BADXML   ${id}`); fail++; continue; }
+    const rootEl = doc.documentElement;
+    if (!rootEl.hasAttribute('viewBox') || !/[\d.]+\s+[\d.]+\s+[\d.]+\s+[\d.]+/.test(rootEl.getAttribute('viewBox') || '')) {
+      console.error(`NOBOX    ${id} (missing viewBox)`); fail++; continue;
+    }
+  }
 }
 
 const files = readdirSync(join(root, 'src', 'assets', 'logos'));
