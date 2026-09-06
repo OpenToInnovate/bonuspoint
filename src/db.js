@@ -3,7 +3,7 @@
  * Store: cards { id, name, color, format, number, notes, archived, createdAt, sort }
  */
 const DB_NAME = 'bonuspoint';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise = null;
 
@@ -16,6 +16,9 @@ function open() {
       if (!db.objectStoreNames.contains('cards')) {
         const store = db.createObjectStore('cards', { keyPath: 'id' });
         store.createIndex('archived', 'archived');
+      }
+      if (!db.objectStoreNames.contains('settings')) {
+        db.createObjectStore('settings'); // keyed by string, value any
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -42,6 +45,9 @@ export const db = {
   putCard: (card) => tx('cards', 'readwrite', (s) => s.put(card)),
   deleteCard: (id) => tx('cards', 'readwrite', (s) => s.delete(id)),
   clearCards: () => tx('cards', 'readwrite', (s) => s.clear()),
+
+  getSetting: (key) => tx('settings', 'readonly', (s) => s.get(key)),
+  putSetting: (key, value) => tx('settings', 'readwrite', (s) => s.put(value, key)),
 
   async export() {
     const cards = await this.listCards();
