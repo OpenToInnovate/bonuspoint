@@ -31,6 +31,9 @@ describe('scanner format mapping', () => {
   it('maps Aztec to aztec display mode', () => {
     expect(mapScanFormat('aztec')).toEqual({ format: 'AZTEC', displayFormat: 'aztec' });
     expect(mapScanFormat('AZTEC')).toEqual({ format: 'AZTEC', displayFormat: 'aztec' });
+    // data_matrix: uploaded images decode it via the native detector path (image/camera parity);
+    // JsBarcode cannot render it, so storage keeps CODE128 (raw payload re-emitted).
+    expect(mapScanFormat('data_matrix')).toEqual({ format: 'CODE128', displayFormat: 'barcode' });
   });
   it('maps barcode symbologies to JsBarcode names', () => {
     expect(mapScanFormat('ean_13').format).toBe('EAN13');
