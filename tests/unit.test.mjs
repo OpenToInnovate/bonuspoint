@@ -174,6 +174,56 @@ describe('barcode rendering & format resolution', () => {
   });
 });
 
+describe('format resolution precedence (resolveCode)', () => {
+  it('stored card format wins over catalog hint and heuristic', async () => {
+    const { resolveCode } = await import('../src/barcode.js');
+    const tesco = { code: 'aztec' };
+    expect(resolveCode({ format: 'EAN13', number: '9994058389105' }, tesco)).toBe('EAN13');
+    expect(resolveCode({ format: 'CODE39', number: 'ABC123' }, tesco)).toBe('CODE39');
+  });
+  it('explicit displayFormat beats a stored linear format', async () => {
+    const { resolveCode } = await import('../src/barcode.js');
+    expect(resolveCode({ format: 'EAN13', displayFormat: 'qr', number: '1' }, { code: 'aztec' })).toBe('qr');
+    expect(resolveCode({ format: 'EAN13', displayFormat: 'aztec', number: '1' })).toBe('aztec');
+    expect(resolveCode({ format: 'EAN13', displayFormat: 'barcode', number: '1' })).toBe('EAN13');
+  });
+  it('catalog code hint applies when no deliberate stored format exists', async () => {
+    const { resolveCode } = await import('../src/barcode.js');
+    expect(resolveCode({ format: 'CODE128', number: '9999000011112222' }, { code: 'aztec' })).toBe('aztec');
+    expect(resolveCode({ format: 'CODE128', number: '9999000011112222' }, { code: 'qr' })).toBe('qr');
+    expect(resolveCode({ format: 'CODE128', number: '9999000011112222' }, { code: 'code39' })).toBe('CODE39');
+    expect(resolveCode({ format: 'CODE128', number: '9999000011112222' }, { code: 'code128' })).toBe('CODE128');
+  });
+  it('heuristic: valid 13-digit check digit -> EAN13, invalid -> Code 128 fallback', async () => {
+    const { resolveCode } = await import('../src/barcode.js');
+    expect(resolveCode({ number: '9994058389105' })).toBe('EAN13');
+    expect(resolveCode({ number: '9994058389100' })).toBe('CODE128');
+    expect(resolveCode({ number: '999405838910' })).toBe('EAN13'); // 12 digits: check computed at render
+  });
+  it('heuristic: 14-digit ITF-14 with Code 128 fallback, 19-digit never auto-QR', async () => {
+    const { resolveCode } = await import('../src/barcode.js');
+    expect(resolveCode({ number: '00099940583896' })).toBe('ITF14');
+    expect(resolveCode({ number: '00099940583890' })).toBe('CODE128');
+    expect(resolveCode({ number: '9999000011112222999' })).toBe('CODE128');
+    expect(resolveCode({ number: '9999000011112222999' }, { code: 'code128' })).toBe('CODE128');
+  });
+  it('heuristic: QR only for clearly alphanumeric-2D content', async () => {
+    const { resolveCode } = await import('../src/barcode.js');
+    expect(resolveCode({ number: 'https://example.com/claim/999900001111' })).toBe('qr');
+    expect(resolveCode({ number: 'ALNUMPAYLOAD99' })).toBe('qr');
+  });
+  it('catalog hints use known symbology values', () => {
+    const HINTS = new Set(['aztec', 'qr', 'code39', 'code128']);
+    for (const c of CATALOG) if (c.code) expect(HINTS.has(c.code)).toBe(true);
+    const byId = Object.fromEntries(CATALOG.map((c) => [c.id, c]));
+    expect(byId.tesco.code).toBe('aztec');
+    expect(byId['lidl-gb'].code).toBe('qr');
+    expect(byId.lidl.code).toBe('qr');
+    expect(byId.ikea.code).toBe('code39');
+    expect(byId.nectar.code).toBe('code128');
+  });
+});
+
 describe('payload field (2D codes distinct from display number)', () => {
   it('round-trips a payload through export/import with a length cap', async () => {
     await db.clearCards();
