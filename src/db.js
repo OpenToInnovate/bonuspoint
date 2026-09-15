@@ -90,7 +90,7 @@ export const db = {
 /* Defensive normalization for imported backups: a malformed or hand-edited
  * file must never crash the app (missing names/numbers, junk colors, huge
  * photo arrays, wrong types). */
-const FORMATS_OK = new Set(['CODE128', 'EAN13', 'EAN8', 'UPC', 'CODE39', 'ITF14']);
+const FORMATS_OK = new Set(['CODE128', 'EAN13', 'EAN8', 'UPC', 'CODE39', 'ITF14', 'AZTEC']);
 function normalizeCard(c) {
   if (!c || typeof c !== 'object' || Array.isArray(c)) return null;
   const hex = (v, fb) => (typeof v === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(v) ? v : fb);
@@ -101,7 +101,8 @@ function normalizeCard(c) {
     name: str(c.name, 80),
     number: str(c.number, 200),
     format: FORMATS_OK.has(c.format) ? c.format : 'CODE128',
-    ...(c.displayFormat === 'qr' || c.displayFormat === 'barcode' ? { displayFormat: c.displayFormat } : {}),
+    ...(c.displayFormat === 'qr' || c.displayFormat === 'barcode' || c.displayFormat === 'aztec' ? { displayFormat: c.displayFormat } : {}),
+    ...(typeof c.payload === 'string' && c.payload ? { payload: str(c.payload, 2000) } : {}),
     color: hex(c.color, '#52525b'),
     ink: hex(c.ink, '#ffffff'),
     text: hex(c.text, '#ffffff'),

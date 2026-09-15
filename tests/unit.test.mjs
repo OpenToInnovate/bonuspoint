@@ -28,6 +28,10 @@ describe('scanner format mapping', () => {
     expect(mapScanFormat('qr_code')).toEqual({ format: 'CODE128', displayFormat: 'qr' });
     expect(mapScanFormat('QR_CODE')).toEqual({ format: 'CODE128', displayFormat: 'qr' });
   });
+  it('maps Aztec to aztec display mode', () => {
+    expect(mapScanFormat('aztec')).toEqual({ format: 'AZTEC', displayFormat: 'aztec' });
+    expect(mapScanFormat('AZTEC')).toEqual({ format: 'AZTEC', displayFormat: 'aztec' });
+  });
   it('maps barcode symbologies to JsBarcode names', () => {
     expect(mapScanFormat('ean_13').format).toBe('EAN13');
     expect(mapScanFormat('ean_8').format).toBe('EAN8');
@@ -135,5 +139,53 @@ describe('scan simulation contract (latch + cooldown live in app view)', () => {
     await db.putCard(card({ id: 'g1', name: 'Nectar', number: 'NECTAR-1', logo: 'nectar' }));
     const dupe = await db.findActiveDuplicate({ name: 'Nectar', number: 'NECTAR-1', logo: 'nectar' });
     expect(dupe.id).toBe('g1');
+  });
+});
+
+describe('barcode rendering & format resolution', () => {
+  it('generates a decodable-shape Aztec matrix for arbitrary payloads', async () => {
+    const { aztecMatrix } = await import('../src/barcode.js');
+    const m = aztecMatrix('SYNTHETIC-PAYLOAD-0012345678');
+    expect(m.width).toBeGreaterThan(10);
+    expect(m.height).toBeGreaterThan(10);
+    let dark = 0;
+    for (let y = 0; y < m.height; y++) for (let x = 0; x < m.width; x++) if (m.get(x, y)) dark++;
+    expect(dark).toBeGreaterThan(m.width); // meaningful symbol, not blank
+  });
+
+  it('resolves display modes: aztec format wins unless overridden', async () => {
+    const { displayMode } = await import('../src/barcode.js');
+    expect(displayMode({ format: 'AZTEC', number: 'ALNUM:PAYLOAD' })).toBe('aztec');
+    expect(displayMode({ format: 'AZTEC', displayFormat: 'barcode', number: '1' })).toBe('barcode');
+    expect(displayMode({ format: 'CODE128', displayFormat: 'aztec', number: '1' })).toBe('aztec');
+    expect(displayMode({ format: 'CODE128', displayFormat: 'qr', number: '1' })).toBe('qr');
+  });
+
+  it('keeps long numeric card numbers as linear barcodes (no auto-QR)', async () => {
+    const { isQRish } = await import('../src/barcode.js');
+    expect(isQRish('8123456789012345678')).toBe(false); // 19-digit numeric
+    expect(isQRish('812345678901234578')).toBe(false); // 18-digit numeric
+    expect(isQRish('ALNUM:PAYLOAD123')).toBe(true);
+    expect(isQRish('')).toBe(false);
+  });
+
+  it('displayFormat cycle includes aztec for aztec cards (contract via FORMATS)', () => {
+    expect(FORMATS).toContain('AZTEC');
+  });
+});
+
+describe('payload field (2D codes distinct from display number)', () => {
+  it('round-trips a payload through export/import with a length cap', async () => {
+    await db.clearCards();
+    const longPayload = 'X'.repeat(5000);
+    await db.putCard(card({ id: 'p1', name: 'Club', number: '9999000011112222', payload: 'SYNTH:PAYLOAD' }));
+    const data = JSON.parse(await db.export());
+    data.cards.push({ id: 'p2', name: 'Huge', number: '88887777', payload: longPayload, format: 'AZTEC' });
+    const imported = await db.import(JSON.stringify(data));
+    const p1 = (await db.listCards()).find((c) => c.id === 'p1');
+    expect(p1.payload).toBe('SYNTH:PAYLOAD');
+    const p2 = (await db.listCards()).find((c) => c.id === 'p2');
+    expect(p2.payload).toBe('X'.repeat(2000)); // capped at 2000 chars
+    expect(p2.displayFormat).toBeUndefined();
   });
 });

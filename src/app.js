@@ -5,7 +5,7 @@ import { db } from './db.js';
 import { CATALOG, FORMATS, REGION_LABELS, identityOf } from './catalog.js';
 import { logoSrc, hasLogo } from './logos.js';
 import { regionMatches } from './region.js';
-import { renderBarcode, renderQR, resetCanvas, displayMode, groupNumber } from './barcode.js';
+import { renderBarcode, renderQR, renderAztec, renderCode, resetCanvas, displayMode, resolveCode, groupNumber } from './barcode.js';
 import { startScan, mapScanFormat, decodeImageFile } from './scanner.js';
 import { detectRegion, REGIONS } from './region.js';
 import './styles.css';
@@ -392,14 +392,15 @@ async function renderDetail(id) {
   ]);
 
   const canvas = face.querySelector('canvas');
-  const renderCode = async () => {
-    const m = displayMode(card);
-    canvas.classList.toggle('qr', m === 'qr');
-    canvas.classList.toggle('barcode', m !== 'qr');
+  const preset = card.logo ? CATALOG.find((c) => c.id === card.logo) : null;
+  const renderCardCode = async () => {
+    const code = resolveCode(card, preset);
+    const twoD = code === 'aztec' || code === 'qr';
+    const value = twoD && card.payload ? card.payload : (card.number || '');
+    canvas.classList.toggle('qr', twoD);
+    canvas.classList.toggle('barcode', !twoD);
     resetCanvas(canvas); // wipe previous render's attributes/inline styles
-    const ok = m === 'qr'
-      ? await renderQR(canvas, card.number || '', { width: 320 })
-      : renderBarcode(canvas, card.number || '', card.format || 'CODE128', { scale: 3 });
+    const ok = await renderCode(canvas, code, value, { width: 320, scale: 3 });
     canvas.style.display = ok ? '' : 'none';
     let msg = face.querySelector('.code-error');
     if (!ok && !msg) {
@@ -409,7 +410,7 @@ async function renderDetail(id) {
     }
     if (msg) msg.style.display = ok ? 'none' : '';
   };
-  renderCode();
+  renderCardCode();
 
   const container = el('div', { class: 'detail-view' }, [header]);
   if (state.view.justAdded) {
@@ -423,12 +424,14 @@ async function renderDetail(id) {
     el('button', { onclick: async () => { face.requestFullscreen?.().catch(() => {}); face.classList.add('face-bright'); } }, ['🔆 Bright']),
     el('button', {
       onclick: async () => {
-        const next = displayMode(card) === 'qr' ? 'barcode' : 'qr';
+        const modes = ['barcode', 'qr', ...(card.format === 'AZTEC' || preset?.code === 'aztec' ? ['aztec'] : [])];
+        const cur = displayMode(card, preset);
+        const next = modes[(modes.indexOf(cur) + 1) % modes.length];
         await db.putCard({ ...card, displayFormat: next });
-        toast(next === 'qr' ? 'Showing QR code' : 'Showing barcode');
+        toast(next === 'qr' ? 'Showing QR code' : next === 'aztec' ? 'Showing Aztec code' : 'Showing barcode');
         render();
       },
-    }, [displayMode(card) === 'qr' ? '▭ Barcode' : '▣ QR']),
+    }, [{ barcode: '▣ QR', qr: '▭ Barcode', aztec: '⬢ Aztec' }[displayMode(card, preset)] || '▣ QR']),
     el('button', {
       onclick: async () => {
         await db.putCard({ ...card, favorite: !card.favorite });
@@ -544,7 +547,11 @@ function renderNumber({ catalogId }) {
   const preset = catalogId ? CATALOG.find((c) => c.id === catalogId) : null;
   let { color, ink, text } = identityOf(preset);
   let format = preset?.format || 'CODE128';
-  let displayFormat = null; // set from scan result; manual entry keeps the format heuristic
+  // Materialize the catalog symbology hint into the card at save time so the
+  // stored format keeps winning on later renders (resolveCode precedence 1).
+  if (preset?.code === 'aztec') format = 'AZTEC';
+  else if (preset?.code === 'code39') format = 'CODE39';
+  let displayFormat = preset?.code === 'qr' ? 'qr' : null; // set from preset hint or scan result
   let stopScan = null;
 
   const header = el('div', { class: 'topbar scan-header' }, [
@@ -609,7 +616,7 @@ function renderNumber({ catalogId }) {
       el('div', { class: 'scan-confirm-box' }, [
         el('div', { class: 'scan-confirm-label' }, ['Code detected']),
         el('div', { class: 'scan-confirm-value', 'data-testid': 'scan-value' }, [scanned.text]),
-        el('div', { class: 'scan-confirm-meta' }, [`Format: ${mapped.displayFormat === 'qr' ? 'QR code' : mapped.format}`]),
+        el('div', { class: 'scan-confirm-meta' }, [`Format: ${mapped.displayFormat === 'qr' ? 'QR code' : mapped.displayFormat === 'aztec' ? 'Aztec code' : mapped.format}`]),
         el('div', { class: 'scan-confirm-name' }, [`Saving as: ${(preset?.name || nameInput.value.trim() || 'Custom card')}`]),
         el('div', { class: 'scan-confirm-actions' }, [
           el('button', {
