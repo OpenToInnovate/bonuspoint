@@ -53,14 +53,13 @@ a { color: inherit; }
   transition: transform .15s ease, box-shadow .15s ease;
 }
 .card-tile:active { transform: scale(.98); }
-.card-tile .tile-name { font-weight: 700; font-size: 13px; line-height: 1.15; text-shadow: 0 1px 2px rgba(0,0,0,.25); word-break: break-word; }
 /* Brand logo dominates the tile face (~80% of tile width). */
 .card-tile .tile-logo {
-  width: 80%; max-width: 150px; height: 44px; object-fit: contain;
+  width: 80%; max-width: 150px; height: 54px; object-fit: contain;
   filter: drop-shadow(0 1px 1px rgba(0,0,0,.2)); user-select: none;
 }
-.popular-grid .card-tile .tile-logo { height: 38px; }
-.card-tile .tile-num { font-size: 11px; opacity: .85; }
+.popular-grid .card-tile .tile-logo { height: 48px; }
+.card-tile .tile-letter { font-size: 34px; font-weight: 800; line-height: 1; }
 .card-tile .tile-star {
   position: absolute; top: 6px; right: 8px; font-size: 18px; color: rgba(255,255,255,.75);
   text-shadow: 0 1px 2px rgba(0,0,0,.4);

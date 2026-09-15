@@ -1,13 +1,13 @@
 /**
  * Camera scanning: native BarcodeDetector when available, else ZXing (@zxing/library, bundled).
- * Supported symbologies: EAN-13/8, UPC-A/E, Code 128, Code 39, ITF, QR.
+ * Supported symbologies: EAN-13/8, UPC-A/E, Code 128, Code 39, ITF, QR, Aztec.
  * startScan(video, onResult) -> stop function.
  */
 import { BrowserMultiFormatReader, BarcodeFormat } from '@zxing/library';
 
 const ZXING_MAP = {
   ean_13: 'ean_13', ean_8: 'ean_8', code_128: 'code_128', code_39: 'code_39',
-  upc_a: 'upc_a', upc_e: 'upc_e', qr_code: 'qr_code', itf: 'itf',
+  upc_a: 'upc_a', upc_e: 'upc_e', qr_code: 'qr_code', itf: 'itf', aztec: 'aztec',
 };
 
 export function nativeDetectorSupported() {
@@ -21,6 +21,7 @@ export function nativeDetectorSupported() {
 export function mapScanFormat(rawFormat) {
   const f = String(rawFormat || '').toLowerCase();
   if (f === 'qr_code' || f === 'qr') return { format: 'CODE128', displayFormat: 'qr' };
+  if (f === 'aztec') return { format: 'AZTEC', displayFormat: 'aztec' };
   const map = {
     ean_13: 'EAN13', ean_8: 'EAN8', upc_a: 'UPC', upc_e: 'UPC',
     code_128: 'CODE128', code_39: 'CODE39', itf: 'ITF14',
@@ -77,6 +78,7 @@ export async function startScan(video, onResult, onError = console.warn) {
 
   const reader = new BrowserMultiFormatReader();
   let lastText = null, lastAt = 0, fired = false;
+  let controls = null; // declared before use: the decode callback stops the loop
   reader.decodeFromVideoDevice(null, video, (result, err) => {
     if (fired) return; // latch: at most one onResult per startScan call
     if (result) {
@@ -91,7 +93,7 @@ export async function startScan(video, onResult, onError = console.warn) {
       return;
     }
     if (err && !(err.name === 'NotFoundException')) onError(err);
-  }).then((controls) => { stop = () => controls.stop(); });
+  }).then((c) => { controls = c; stop = () => c.stop(); });
   // Note: assignment above runs async; wrap to ensure latest stop is used.
   return () => { try { stop(); } catch (_) {} };
 }

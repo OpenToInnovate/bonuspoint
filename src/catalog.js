@@ -8,6 +8,9 @@
  *   color — official brand background (tile face / detail header strip)
  *   ink   — logo colour (defaults #fff); used to tint the bundled SVG
  *   text  — card-name colour on the tile (defaults #fff)
+ * `code` — optional symbology hint ('aztec' | 'qr' | 'code39' | 'code128'):
+ *   what the brand's app codes actually use; materialized into the card at
+ *   save time and used by resolveCode() when the card has no stored format.
  * Light-background brands (ASDA) carry a white face with brand-green ink.
  * Hexes cross-checked against simple-icons 16.30 official brand data where
  * available (Tesco 00539F, Boots 05054B-family navy, IKEA 0058A3, Lidl 0050AA,
@@ -16,20 +19,21 @@
  */
 export const CATALOG = [
   // ---------- United Kingdom ----------
-  { id: 'tesco', name: 'Tesco Clubcard', color: '#00539f', format: 'CODE128', regions: ['GB'] },
+  { id: 'tesco', name: 'Tesco Clubcard', color: '#00539f', format: 'CODE128', code: 'aztec', regions: ['GB'] },
   { id: 'sainsburys', name: "Sainsbury's Nectar", color: '#ff6a13', format: 'CODE128', regions: ['GB'] },
-  { id: 'nectar', name: 'Nectar', color: '#7a26c9', format: 'CODE128', regions: ['GB'] },
+  { id: 'nectar', name: 'Nectar', color: '#7a26c9', format: 'CODE128', code: 'code128', regions: ['GB'] },
   { id: 'boots', name: 'Boots Advantage', color: '#0e1e45', format: 'CODE128', regions: ['GB'] },
   { id: 'asda', name: 'ASDA Rewards', color: '#ffffff', ink: '#67b742', text: '#3b7a22', format: 'CODE128', regions: ['GB'] },
   { id: 'morrisons', name: 'Morrisons More', color: '#004f40', format: 'CODE128', regions: ['GB'] },
   { id: 'waitrose', name: 'Waitrose & Partners', color: '#37836e', format: 'CODE128', regions: ['GB'] },
-  { id: 'lidl-gb', name: 'Lidl Plus', color: '#0050aa', format: 'CODE128', regions: ['GB'] },
+  { id: 'lidl-gb', name: 'Lidl Plus', color: '#0050aa', format: 'CODE128', code: 'qr', regions: ['GB'] },
   { id: 'costa', name: 'Costa Coffee Club', color: '#d5352c', format: 'CODE128', regions: ['GB'] },
   { id: 'greggs', name: 'Greggs Rewards', color: '#004b93', format: 'CODE128', regions: ['GB'] },
-  { id: 'ikea', name: 'IKEA Family', color: '#0058a3', ink: '#ffdb00', format: 'CODE128', regions: ['GB', 'CA', 'EU'] },
+  { id: 'ikea', name: 'IKEA Family', color: '#0058a3', ink: '#ffdb00', format: 'CODE128', code: 'code39', regions: ['GB', 'CA', 'EU'] },
   { id: 'superdrug', name: 'Superdrug', color: '#e4002b', format: 'CODE128', regions: ['GB'] },
   { id: 'holland-barrett', name: 'Holland & Barrett', color: '#00693e', format: 'CODE128', regions: ['GB'] },
   { id: 'jd-sports', name: 'JD Sports', color: '#000000', ink: '#fdda25', format: 'CODE128', regions: ['GB'] },
+  { id: 'john-lewis', name: 'John Lewis & Partners', color: '#000000', format: 'CODE128', regions: ['GB'] },
   { id: 'argos', name: 'Argos', color: '#da291c', format: 'CODE128', regions: ['GB'] },
   { id: 'wagamama', name: 'Wagamama', color: '#1a1a1a', format: 'CODE128', regions: ['GB'] },
   { id: 'nandos', name: "Nando's", color: '#1a1a1a', ink: '#df2c2c', format: 'CODE128', regions: ['GB'] },
@@ -79,7 +83,7 @@ export const CATALOG = [
   // ---------- EU (legacy entries kept for existing users) ----------
   { id: 'rewe', name: 'REWE', color: '#cc071e', format: 'CODE128', regions: ['EU'] },
   { id: 'aldi', name: 'Aldi', color: '#2490d7', format: 'CODE128', regions: ['EU'] },
-  { id: 'lidl', name: 'Lidl', color: '#0050aa', format: 'CODE128', regions: ['EU'] },
+  { id: 'lidl', name: 'Lidl', color: '#0050aa', format: 'CODE128', code: 'qr', regions: ['EU'] },
   { id: 'dm', name: 'dm', color: '#002878', format: 'CODE128', regions: ['EU'] },
   { id: 'metro', name: 'Metro', color: '#002d72', format: 'CODE128', regions: ['EU'] },
   { id: 'rossmann', name: 'Rossmann', color: '#c3002d', format: 'CODE128', regions: ['EU'] },
@@ -94,10 +98,10 @@ export const REGION_LABELS = {
 };
 
 /** Renderable barcode formats supported by JsBarcode that we expose. */
-export const FORMATS = ['CODE128', 'EAN13', 'EAN8', 'UPC', 'CODE39', 'ITF14'];
+export const FORMATS = ['CODE128', 'EAN13', 'EAN8', 'UPC', 'CODE39', 'ITF14', 'AZTEC'];
 
 /** Formats the camera scanner accepts (ZXing + native BarcodeDetector union). */
-export const SCAN_FORMATS = ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code', 'itf'];
+export const SCAN_FORMATS = ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code', 'itf', 'aztec'];
 
 /** Identity defaults for cards without catalog fields (custom cards). */
 export function identityOf(entry) {

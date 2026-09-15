@@ -23,6 +23,10 @@ window.HTMLCanvasElement.prototype.getContext = () => ({
   drawImage() {}, clearRect() {},
   createImageData: (w, h) => ({ data: new window.Uint8ClampedArray(Number(w) * Number(h) * 4 || 4), width: Number(w) || 1, height: Number(h) || 1 }),
   putImageData() {},
+  save() {}, restore() {}, translate() {}, scale() {}, rotate() {},
+  beginPath() {}, closePath() {}, moveTo() {}, lineTo() {}, rect() {}, arc() {},
+  stroke() {}, fill() {}, fillRect() {}, fillText() {}, strokeText() {},
+  measureText: () => ({ width: 10 }),
 });
 window.HTMLCanvasElement.prototype.toDataURL = () => 'data:image/jpeg;base64,x';
 window.createImageBitmap = async () => ({ width: 100, height: 100 });
@@ -84,7 +88,7 @@ check('unicode initial on tile', text().includes('C'));
 input(q('.search-bar'), 'zzz'); await settle();
 check('no-match message', text().includes('No cards match your search'));
 input(q('.search-bar'), 'caf'); await settle();
-check('search finds card', text().includes('Café Uno ☕'));
+check('search finds card', qa('.cards-grid .card-tile').some((t) => t.getAttribute('aria-label')?.includes('Café Uno')));
 input(q('.search-bar'), ''); await settle();
 
 // 5. Favorite toggle from tile star
@@ -140,10 +144,10 @@ const regionSel = q('[data-testid=region-select]');
 regionSel.value = 'JP'; change(regionSel); await settle();
 await goCardsTab(); // list view; go to add
 click(q('.icon-btn[aria-label="Add card"]')); await settle();
-check('JP region shows Rakuten', text().includes('Rakuten'));
-check('JP region hides Tesco', !text().includes('Tesco Clubcard'));
+check('JP region shows Rakuten', qa('.popular-grid .card-tile').some((t) => t.getAttribute('aria-label')?.includes('Rakuten')));
+check('JP region hides Tesco', !qa('.popular-grid .card-tile').some((t) => t.getAttribute('aria-label')?.includes('Tesco')));
 click(q('[data-testid=show-all-toggle]')); await settle();
-check('show-all reveals Tesco', text().includes('Tesco Clubcard'));
+check('show-all reveals Tesco', qa('.popular-grid .card-tile').some((t) => t.getAttribute('aria-label')?.includes('Tesco')));
 click(q('[data-testid=show-all-toggle]')); await settle();
 await goSettings();
 regionSel.value = 'auto'; change(regionSel); await settle();
