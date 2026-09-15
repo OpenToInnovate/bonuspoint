@@ -33,6 +33,7 @@ export const CATALOG = [
   { id: 'superdrug', name: 'Superdrug', color: '#e4002b', format: 'CODE128', regions: ['GB'] },
   { id: 'holland-barrett', name: 'Holland & Barrett', color: '#00693e', format: 'CODE128', regions: ['GB'] },
   { id: 'jd-sports', name: 'JD Sports', color: '#000000', ink: '#fdda25', format: 'CODE128', regions: ['GB'] },
+  { id: 'john-lewis', name: 'John Lewis & Partners', color: '#000000', format: 'CODE128', regions: ['GB'] },
   { id: 'argos', name: 'Argos', color: '#da291c', format: 'CODE128', regions: ['GB'] },
   { id: 'wagamama', name: 'Wagamama', color: '#1a1a1a', format: 'CODE128', regions: ['GB'] },
   { id: 'nandos', name: "Nando's", color: '#1a1a1a', ink: '#df2c2c', format: 'CODE128', regions: ['GB'] },
