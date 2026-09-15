@@ -518,7 +518,7 @@ async function renderAdd() {
     const list = CATALOG.filter((item) => showAllRegions || regionMatches(item.regions, region));
     for (const item of list) {
       grid.append(el('button', {
-        class: 'card-tile', style: `background:${item.color}`,
+        class: 'card-tile', style: `background:${item.color}`, 'aria-label': item.name,
         onclick: () => navigate({ name: 'number', catalogId: item.id }),
       }, [
         logoImg(item.id, item.ink),
