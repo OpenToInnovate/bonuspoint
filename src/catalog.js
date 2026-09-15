@@ -101,7 +101,7 @@ export const REGION_LABELS = {
 export const FORMATS = ['CODE128', 'EAN13', 'EAN8', 'UPC', 'CODE39', 'ITF14', 'AZTEC'];
 
 /** Formats the camera scanner accepts (ZXing + native BarcodeDetector union). */
-export const SCAN_FORMATS = ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code', 'itf', 'aztec'];
+export const SCAN_FORMATS = ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code', 'itf', 'aztec', 'data_matrix'];
 
 /** Identity defaults for cards without catalog fields (custom cards). */
 export function identityOf(entry) {
