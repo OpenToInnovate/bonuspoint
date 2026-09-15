@@ -47,7 +47,7 @@ a { color: inherit; }
 }
 .card-tile {
   border-radius: 16px; color: #fff; padding: 10px 12px;
-  height: 96px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px;
+  height: 120px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px;
   box-shadow: 0 1px 3px rgba(0,0,0,.15), inset 0 0 0 1px rgba(0,0,0,.10);
   text-align: center; overflow: hidden;
   transition: transform .15s ease, box-shadow .15s ease;
@@ -55,10 +55,10 @@ a { color: inherit; }
 .card-tile:active { transform: scale(.98); }
 /* Brand logo dominates the tile face (~80% of tile width). */
 .card-tile .tile-logo {
-  width: 80%; max-width: 150px; height: 54px; object-fit: contain;
+  width: 80%; max-width: 178px; height: 64px; object-fit: contain;
   filter: drop-shadow(0 1px 1px rgba(0,0,0,.2)); user-select: none;
 }
-.popular-grid .card-tile .tile-logo { height: 48px; }
+.popular-grid .card-tile .tile-logo { height: 56px; }
 .card-tile .tile-letter { font-size: 34px; font-weight: 800; line-height: 1; }
 .card-tile .tile-star {
   position: absolute; top: 6px; right: 8px; font-size: 18px; color: rgba(255,255,255,.75);
@@ -131,7 +131,7 @@ a { color: inherit; }
 }
 .btn-red:active { background: var(--red-dark); }
 .popular-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 0 16px; }
-.popular-grid .card-tile { height: 76px; justify-content: center; padding: 8px 6px; }
+.popular-grid .card-tile { height: 92px; justify-content: center; padding: 8px 6px; }
 .caption { text-align: center; color: var(--muted); font-size: 13px; padding: 16px 0 100px; }
 
 /* ---------- Card detail (dark premium) ---------- */

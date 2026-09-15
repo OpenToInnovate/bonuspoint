@@ -17,9 +17,10 @@ for (const id of ids) {
   if (!existsSync(p)) { console.error(`MISSING  ${id} (generic letter tile would show)`); fail++; continue; }
   const svg = readFileSync(p, 'utf8');
   const hasGlyph = /<path\s/.test(svg) || /<text\s/.test(svg);
+  const fullColor = /data-fullcolor="1"/.test(svg);
   const tintable = /fill="#ffffff"/i.test(svg);
   if (!hasGlyph) { console.error(`EMPTY    ${id} (no path/text)`); fail++; continue; }
-  if (!tintable) { console.error(`NOTINT   ${id} (no fill="#ffffff" to tint)`); fail++; continue; }
+  if (!tintable && !fullColor) { console.error(`NOTINT   ${id} (no fill="#ffffff" to tint, nor full-colour flag)`); fail++; continue; }
   // Valid XML + viewBox (needed for clean scaling at every tile size).
   if (parser) {
     const doc = parser.parseFromString(svg, 'image/svg+xml');

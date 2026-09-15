@@ -19,9 +19,9 @@
  */
 export const CATALOG = [
   // ---------- United Kingdom ----------
-  { id: 'tesco', name: 'Tesco Clubcard', color: '#00539f', format: 'CODE128', code: 'aztec', regions: ['GB'] },
+  { id: 'tesco', name: 'Tesco Clubcard', color: '#ffffff', text: '#ee1c2e', format: 'CODE128', code: 'aztec', regions: ['GB'] },
   { id: 'sainsburys', name: "Sainsbury's Nectar", color: '#ff6a13', format: 'CODE128', regions: ['GB'] },
-  { id: 'nectar', name: 'Nectar', color: '#7a26c9', format: 'CODE128', code: 'code128', regions: ['GB'] },
+  { id: 'nectar', name: 'Nectar', color: '#ffffff', text: '#3b2a6b', format: 'CODE128', code: 'code128', regions: ['GB'] },
   { id: 'boots', name: 'Boots Advantage', color: '#0e1e45', format: 'CODE128', regions: ['GB'] },
   { id: 'asda', name: 'ASDA Rewards', color: '#ffffff', ink: '#67b742', text: '#3b7a22', format: 'CODE128', regions: ['GB'] },
   { id: 'morrisons', name: 'Morrisons More', color: '#004f40', format: 'CODE128', regions: ['GB'] },
@@ -82,7 +82,7 @@ export const CATALOG = [
 
   // ---------- EU (legacy entries kept for existing users) ----------
   { id: 'rewe', name: 'REWE', color: '#cc071e', format: 'CODE128', regions: ['EU'] },
-  { id: 'aldi', name: 'Aldi', color: '#2490d7', format: 'CODE128', regions: ['EU'] },
+  { id: 'aldi', name: 'Aldi', color: '#ffffff', text: '#1a1a1a', format: 'CODE128', regions: ['EU'] },
   { id: 'lidl', name: 'Lidl', color: '#0050aa', format: 'CODE128', code: 'qr', regions: ['EU'] },
   { id: 'dm', name: 'dm', color: '#002878', format: 'CODE128', regions: ['EU'] },
   { id: 'metro', name: 'Metro', color: '#002d72', format: 'CODE128', regions: ['EU'] },
@@ -101,7 +101,7 @@ export const REGION_LABELS = {
 export const FORMATS = ['CODE128', 'EAN13', 'EAN8', 'UPC', 'CODE39', 'ITF14', 'AZTEC'];
 
 /** Formats the camera scanner accepts (ZXing + native BarcodeDetector union). */
-export const SCAN_FORMATS = ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code', 'itf', 'aztec'];
+export const SCAN_FORMATS = ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code', 'itf', 'aztec', 'data_matrix'];
 
 /** Identity defaults for cards without catalog fields (custom cards). */
 export function identityOf(entry) {
