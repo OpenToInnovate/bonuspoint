@@ -234,6 +234,7 @@ function listTile(c) {
   const tile = el('button', {
     class: `card-tile${selectMode ? ' selecting' : ''}${selectedIds.has(c.id) ? ' selected' : ''}`,
     style: `background:${c.color || '#52525b'}`, 'data-card-id': c.id,
+    role: 'button', 'aria-label': c.name,
     onclick: () => {
       if (suppressClick) return;
       if (selectMode) {
@@ -250,8 +251,6 @@ function listTile(c) {
   }, [
     selectMode ? el('span', { class: 'select-check', 'aria-hidden': 'true' }, [selectedIds.has(c.id) ? '✓' : '']) : null,
     logoImg(c.logo, c.ink) || el('div', { class: 'tile-letter', style: `color:${c.text || '#fff'}` }, [firstChar(c.name)]),
-    el('div', { class: 'tile-name', style: `color:${c.text || '#fff'}` }, [c.name]),
-    c.number ? el('div', { class: 'tile-num' }, [groupNumber(c.number)]) : null,
     el('span', {
       class: `tile-star${c.favorite ? ' on' : ''}`, style: `color:${c.text || '#fff'}`, 'aria-label': c.favorite ? 'Remove favorite' : 'Add favorite',
       onclick: async (e) => {
@@ -523,7 +522,6 @@ async function renderAdd() {
         onclick: () => navigate({ name: 'number', catalogId: item.id }),
       }, [
         logoImg(item.id, item.ink),
-        el('div', { class: 'tile-name', style: `text-align:center;font-size:12px;color:${item.text || '#fff'}` }, [item.name]),
       ]));
     }
     grid.append(el('button', {
